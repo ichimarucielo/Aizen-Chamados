@@ -1,6 +1,8 @@
 from pathlib import Path
 
-from export import create_output_copy
+import pandas as pd
+
+from export import export_plano_n2
 
 from extract import (
     load_salesforce,
@@ -11,9 +13,6 @@ from extract import (
 from parse_description import (
     normalize_description,
     extract_cnpj,
-    extract_email,
-    extract_phone,
-    parse_description,
 )
 
 from lookup import (
@@ -49,15 +48,99 @@ OUTPUT_PATH = (
     / "plano_n2_gerado.xlsx"
 )
 
+COMPILADO_COLUMNS = [
+    "Obs", "RESPONSÁVEL", "Classificação", "Número do Chamado",
+    "Chamado Pai (clone)", "Número de protocolo", "Razão social", "CNPJ",
+    "Causa raiz", "Observação/Ação", "Ofensor", "Status", "Prioridade",
+    "Assunto", "Data de abertura",
+    "Data da última modificação do chamado", "Mês/Ano",
+    "Proprietário do Chamado", "Email da Web", "Nome Fantasia", "Descrição",
+    "Descrição detalhada", "Ref.", "Dt.Encerramento", "Situação",
+    "Dias em Aberto", "Aux_Ranking", "Origem",
+]
 
-def main() -> None:
-    generated_file = create_output_copy(
-        template_path=TEMPLATE_PATH,
-        output_path=OUTPUT_PATH,
+
+def _month_year(value) -> str:
+    if pd.isna(value):
+        return ""
+
+    months = [
+        "jan", "fev", "mar", "abr", "mai", "jun",
+        "jul", "ago", "set", "out", "nov", "dez",
+    ]
+    date = pd.to_datetime(value, dayfirst=True)
+    return f"{months[date.month - 1]}/{date.year}"
+
+
+def build_n2_dataframe(
+    monitoramento_df: pd.DataFrame,
+    references_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """Mapeia o relatório do Salesforce para o layout Compilado chamados."""
+
+    dataframe = monitoramento_df.copy()
+    description = dataframe["Descrição"].fillna("").astype(str)
+    dataframe["CNPJ"] = extract_cnpj(description)
+    dataframe["DESCRICAO_NORMALIZADA"] = description.apply(
+        normalize_description
     )
 
-    print(f"Arquivo gerado: {generated_file}")
+    razao_social_lookup = build_razao_social_lookup(references_df)
+    dataframe["RAZAO_SOCIAL"] = dataframe["CNPJ"].apply(
+        lambda value: lookup_razao_social(value, razao_social_lookup)
+    )
 
+    causa_raiz = dataframe.get(
+        "Causa raiz",
+        pd.Series("", index=dataframe.index),
+    ).fillna("")
+    classificacao_lookup = {
+        str(row["Tema"]).strip(): row["Macro Classificação"]
+        for _, row in references_df.iterrows()
+        if pd.notna(row.get("Tema"))
+        and pd.notna(row.get("Macro Classificação"))
+    }
+
+    result = pd.DataFrame(index=dataframe.index)
+    result["Obs"] = ""
+    result["RESPONSÁVEL"] = ""
+    result["Classificação"] = causa_raiz.map(
+        lambda value: classificacao_lookup.get(str(value).strip(), "")
+    )
+    result["Número do Chamado"] = dataframe["Número do Chamado"]
+    result["Chamado Pai (clone)"] = dataframe["Número de Chamado Pai"]
+    result["Número de protocolo"] = dataframe["Número Protocolo"]
+    result["Razão social"] = dataframe["RAZAO_SOCIAL"]
+    result["CNPJ"] = dataframe["CNPJ"]
+    result["Causa raiz"] = causa_raiz
+    result["Observação/Ação"] = ""
+    result["Ofensor"] = ""
+    result["Status"] = dataframe["Status"]
+    result["Prioridade"] = ""
+    result["Assunto"] = dataframe["Assunto"]
+    result["Data de abertura"] = dataframe["Data de abertura"]
+    result["Data da última modificação do chamado"] = dataframe[
+        "Data da última modificação do chamado"
+    ]
+    result["Mês/Ano"] = dataframe["Data de abertura"].apply(_month_year)
+    result["Proprietário do Chamado"] = dataframe["Proprietário do Chamado"]
+    result["Email da Web"] = dataframe["Email da Web"]
+    result["Nome Fantasia"] = dataframe["Nome Fantasia"]
+    result["Descrição"] = dataframe["Descrição"]
+    result["Descrição detalhada"] = dataframe["DESCRICAO_NORMALIZADA"]
+    result["Ref."] = ""
+    result["Dt.Encerramento"] = ""
+    result["Situação"] = dataframe["Status"].apply(apply_situacao)
+    result["Dias em Aberto"] = dataframe["Data de abertura"].apply(
+        apply_dias_aberto
+    )
+    result["Aux_Ranking"] = ""
+    result["Origem"] = ""
+
+    return result[COMPILADO_COLUMNS]
+
+
+def main() -> None:
     references_df = load_references(
         TEMPLATE_PATH
     )
@@ -74,132 +157,20 @@ def main() -> None:
         f"Chamados carregados: {len(monitoramento_df)}"
     )
 
-    monitoramento_df["CNPJ"] = extract_cnpj(
-        monitoramento_df["Descrição"]
+    n2_df = build_n2_dataframe(
+        monitoramento_df,
+        references_df,
     )
 
-    monitoramento_df["EMAIL_EXTRAIDO"] = extract_email(
-        monitoramento_df["Descrição"]
+    generated_file, inserted = export_plano_n2(
+        dataframe=n2_df,
+        template_path=TEMPLATE_PATH,
+        output_path=OUTPUT_PATH,
     )
 
-    monitoramento_df["TELEFONE"] = extract_phone(
-        monitoramento_df["Descrição"]
-    )
-
-    monitoramento_df["DESCRICAO_NORMALIZADA"] = (
-        monitoramento_df["Descrição"]
-        .fillna("")
-        .astype(str)
-        .apply(normalize_description)
-    )
-
-    razao_social_lookup = (
-        build_razao_social_lookup(
-            references_df
-        )
-    )
-
-    monitoramento_df["RAZAO_SOCIAL"] = (
-        monitoramento_df["CNPJ"]
-        .apply(
-            lambda x: lookup_razao_social(
-                x,
-                razao_social_lookup,
-            )
-        )
-    )
-
-    n2_df = monitoramento_df[
-    [
-        "Número do Chamado",
-        "Número de Chamado Pai",
-        "Número Protocolo",
-        "RAZAO_SOCIAL",
-        "CNPJ",
-        "Assunto",
-        "Data de abertura",
-        "Data da última modificação do chamado",
-        "Proprietário do Chamado",
-        "Email da Web",
-        "Nome Fantasia",
-        "DESCRICAO_NORMALIZADA",
-    ]
-].copy()
-
-    n2_df["Situação"] = (
-    monitoramento_df["Status"]
-    .apply(apply_situacao)
-    )
-
-    n2_df["Dias em Aberto"] = (
-        monitoramento_df["Data de abertura"]
-        .apply(apply_dias_aberto)
-    )
-
-    n2_df = n2_df.rename(
-    columns={
-        "Número do Chamado": "Número do Chamado",
-        "Número de Chamado Pai": "Chamado Pai (clone)",
-        "Número Protocolo": "Número de protocolo",
-        "RAZAO_SOCIAL": "Razão social",
-        "CNPJ": "CNPJ",
-        "Assunto": "Assunto",
-        "Data de abertura": "Data de abertura",
-        "Data da última modificação do chamado":
-            "Data da última modificação do chamado",
-        "Proprietário do Chamado":
-            "Proprietário do Chamado",
-        "Email da Web": "Email da Web",
-        "Nome Fantasia": "Nome Fantasia",
-        "DESCRICAO_NORMALIZADA":
-            "Descrição detalhada",
-    }
-)
-    print("\nN2 PREVIEW")
-    print("=" * 100)
-
-    print(
-        n2_df.head(5)
-    )
-
-
-    print(
-        monitoramento_df[
-            [
-                "Número do Chamado",
-                "CNPJ",
-                "RAZAO_SOCIAL",
-            ]
-        ].head(10)
-    )
-
-    dados = parse_description(
-        monitoramento_df.loc[0, "Descrição"]
-    )
-
-    print("\nCAMPOS EXTRAIDOS")
-    print("=" * 100)
-
-    for chave, valor in dados.items():
-        print(f"{chave}:")
-        print(valor)
-        print()
-
-
-    compilado_df = load_compilado_sheet(
-        TEMPLATE_PATH
-    )
-
-    print("\nCOMPILADO")
-    print("=" * 100)
-
-    print(
-        f"Registros: {len(compilado_df)}"
-    )
-
-    print(
-        compilado_df.columns.tolist()
-    )
+    print(f"Arquivo gerado: {generated_file}")
+    print(f"Novos chamados inseridos: {inserted}")
+    print(f"Registros no compilado: {len(load_compilado_sheet(generated_file))}")
 
 if __name__ == "__main__":
     main()
