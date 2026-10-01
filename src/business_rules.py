@@ -37,7 +37,9 @@ def apply_dias_aberto(
     if pd.isna(data_abertura):
         return 0
 
-    pd.to_datetime(
+    data_abertura = pd.to_datetime(
         data_abertura,
         dayfirst=True,
     )
+
+    return (datetime.now() - data_abertura).days
