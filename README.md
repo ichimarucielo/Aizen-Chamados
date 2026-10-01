@@ -53,7 +53,8 @@ aizen_chamados/
 │   ├── extract.py
 │   ├── lookup.py
 │   ├── main.py
-│   └── parse_description.py
+│   ├── parse_description.py
+│   └── root_cause_analysis.py
 └── README.md
 ```
 
@@ -71,6 +72,22 @@ O arquivo será salvo em:
 ```text
 data/output/plano_n2_gerado.xlsx
 ```
+
+Para analisar os históricos e gerar candidatos de termos para o dicionário de
+causa raiz:
+
+```powershell
+$env:PYTHONPATH = "src"
+python src/root_cause_analysis.py
+```
+
+O resultado exploratório é salvo em
+`data/output/causa_raiz_analise.json`. Os termos são candidatos para revisão
+da equipe N2; o script não classifica chamados automaticamente.
+
+O dicionário operacional em estado de rascunho está em
+`data/input/causa_raiz_rules.yaml`. Ele só deve ser usado no pipeline depois
+da validação dos termos pela equipe N2.
 
 ## O que já funciona
 
@@ -95,3 +112,4 @@ data/output/plano_n2_gerado.xlsx
 1. Validar com a equipe N2 quais campos manuais devem continuar sendo preenchidos depois da exportação.
 2. Definir a origem oficial de `Causa raiz` e `Classificação` quando esses campos vierem vazios no Salesforce.
 3. Adicionar testes automatizados para novos layouts de relatório e para a idempotência do arquivo final.
+4. Revisar os candidatos gerados por `root_cause_analysis.py` e transformar somente as regras aprovadas pela equipe N2 em lógica operacional.

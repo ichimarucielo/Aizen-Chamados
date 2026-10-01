@@ -1,0 +1,38 @@
+# Rascunho de regras operacionais.
+# Os termos abaixo sao candidatos e precisam ser aprovados pela equipe N2.
+version: 1
+status: draft
+source: data/output/causa_raiz_analise.json
+
+rules:
+  cancelamento_nf_reemissao:
+    status: revisar
+    required: []
+    optional:
+      - cancelamento
+      - nota fiscal
+      - reemissao
+    excluded:
+      - boleto
+    causa_raiz: "Cancelamento de NF / reemissão"
+
+  cobranca_duplicada:
+    status: revisar
+    required: []
+    optional:
+      - duplicidade
+      - cobrado duas vezes
+      - valor duplicado
+    excluded: []
+    causa_raiz: "Duplicidade De Cobrança"
+
+  boleto:
+    status: revisar
+    required: []
+    optional:
+      - boleto
+      - vencimento
+      - juros
+      - segunda via
+    excluded: []
+    causa_raiz: "Reenvio de boleto"

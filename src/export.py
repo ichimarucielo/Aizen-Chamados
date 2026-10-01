@@ -37,6 +37,18 @@ def _copy_row_format_and_formulas(
             ).translate_formula(target.coordinate)
 
 
+def _find_last_ticket_row(
+    worksheet,
+    ticket_column: int,
+) -> int:
+    for row in range(worksheet.max_row, HEADER_ROW, -1):
+        value = worksheet.cell(row, ticket_column).value
+        if _normalize_id(value):
+            return row
+
+    return HEADER_ROW
+
+
 def create_output_copy(
     template_path: Path,
     output_path: Path,
@@ -84,8 +96,8 @@ def export_plano_n2(
         ~dataframe["Número do Chamado"].map(_normalize_id).isin(existing_ids)
     ].copy()
 
-    next_row = worksheet.max_row + 1
-    source_row = next_row - 1
+    source_row = _find_last_ticket_row(worksheet, ticket_column)
+    next_row = source_row + 1
 
     for row_offset, (_, row) in enumerate(new_rows.iterrows()):
         target_row = next_row + row_offset
