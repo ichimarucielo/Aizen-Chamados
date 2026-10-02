@@ -19,6 +19,12 @@ rules:
       - cancelar nota
       - cancelamento de nota
       - cancelamento das notas
+      - cancelamento da nf
+      - cancelar todas notas
+      - cancelar todas as notas
+      - cancelamento de todas as notas
+      - solicito cancelamento das notas
+      - favor cancelar notas
       - reemitir
       - reemissao
     excluded:

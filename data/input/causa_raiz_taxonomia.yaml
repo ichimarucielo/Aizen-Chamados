@@ -16,7 +16,7 @@ grupos:
   # --- Cancelamento e Reemissão de Nota Fiscal ---
   cancelamento_reemissao_nf:
     classificacao: "Cancelamento e Reemissão de Nota Fiscal"
-    causa_canonica: "Cancelamento de NF / reemissão"
+    causa_canonica: "Cancelamento de Nota Fiscal"
     variantes:
       - "Cancelamento de NF / reemissão"
       - "Cancelamento de NF"

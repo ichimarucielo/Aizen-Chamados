@@ -14,9 +14,22 @@ SHEET_NAME = "Compilado chamados"
 TABLE_NAME = "Tabela2"
 HEADER_ROW = 4
 SUGGESTION_COLUMNS = [
+    "Intenção Identificada",
+    "Causa Identificada",
+    "Causa Raiz Padrão",
     "Objeto Operacional Sugerido",
     "Classificação Sugerida",
     "Score Confiança",
+]
+TRACKING_COLUMNS = [
+    "Regra Sugerida",
+    "Status da Sugestão",
+    "Ambiguidade",
+]
+VALIDATION_COLUMNS = [
+    "Objeto Operacional Validado",
+    "Classificação Validada",
+    "Concordância",
 ]
 
 
@@ -96,6 +109,18 @@ def _ensure_columns(worksheet, names: list[str]) -> None:
     _resize_table(worksheet)
 
 
+def _write_agreement_formulas(worksheet, headers: dict[str, int], last_row: int) -> None:
+    suggested_column = get_column_letter(headers["Classificação Sugerida"])
+    validated_column = get_column_letter(headers["Classificação Validada"])
+    agreement_column = headers["Concordância"]
+
+    for row in range(HEADER_ROW + 1, last_row + 1):
+        worksheet.cell(row, agreement_column).value = (
+            f'=IF(OR({suggested_column}{row}="",{validated_column}{row}=""),'
+            f'"",IF({suggested_column}{row}={validated_column}{row},"SIM","NÃO"))'
+        )
+
+
 def create_output_copy(
     template_path: Path,
     output_path: Path,
@@ -124,12 +149,16 @@ def export_plano_n2(
 ) -> tuple[Path, pd.DataFrame]:
     """Copia o template e acrescenta apenas chamados ainda inexistentes."""
 
-    create_output_copy(template_path, output_path)
+    if not output_path.exists():
+        create_output_copy(template_path, output_path)
 
     workbook = load_workbook(output_path)
     worksheet = workbook[SHEET_NAME]
 
-    _ensure_columns(worksheet, SUGGESTION_COLUMNS)
+    _ensure_columns(
+        worksheet,
+        SUGGESTION_COLUMNS + TRACKING_COLUMNS + VALIDATION_COLUMNS,
+    )
     headers = {
         worksheet.cell(HEADER_ROW, column).value: column
         for column in range(1, worksheet.max_column + 1)
@@ -167,6 +196,7 @@ def export_plano_n2(
 
     last_row = max(source_row, next_row + len(new_rows) - 1)
     _resize_table(worksheet, last_row)
+    _write_agreement_formulas(worksheet, headers, last_row)
 
     workbook.save(output_path)
     return output_path, new_rows

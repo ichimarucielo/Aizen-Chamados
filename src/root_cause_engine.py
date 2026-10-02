@@ -1,15 +1,7 @@
-"""Descricao -> grupo -> classificacao -> objeto operacional, via regras e taxonomia (YAML).
-
-O motor apenas SUGERE; nada e preenchido nas colunas de negocio. Sugestoes usam
-regras "aprovado" e "revisar" (nunca "descartar"). A avaliacao historica usa
-somente as aprovadas, ou tambem as rascunho com --incluir-rascunho. Sem regra
-aplicavel ou com empate entre classificacoes, nao ha sugestao.
-A metrica de sucesso e o acerto da CLASSIFICACAO, nao da causa raiz exata.
-"""
+"""Descrição detalhada -> intenção -> causa padrão -> classificação oficial."""
 
 from pathlib import Path
 import re
-import sys
 import unicodedata
 
 import pandas as pd
@@ -20,192 +12,306 @@ from parse_description import normalize_description
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-RULES_PATH = BASE_DIR / "data" / "input" / "causa_raiz_rules.yaml"
+DICTIONARY_PATH = BASE_DIR / "data" / "input" / "dicionario_aizen_intencoes.yaml"
 TAXONOMY_PATH = BASE_DIR / "data" / "input" / "causa_raiz_taxonomia.yaml"
 TEMPLATE_PATH = BASE_DIR / "data" / "input" / "plano_n2_template.xlsx"
-
-APPROVED = "aprovado"
-DRAFT = "revisar"
 
 
 def normalize_text(text) -> str:
     if pd.isna(text):
         return ""
-    value = unicodedata.normalize("NFKD", normalize_description(text).lower())
-    return "".join(char for char in value if not unicodedata.combining(char))
+    value = unicodedata.normalize(
+        "NFKD",
+        normalize_description(str(text)).lower(),
+    )
+    value = "".join(
+        char for char in value if not unicodedata.combining(char)
+    )
+    value = re.sub(r"\bnotas?\s+fisc(?:al|ais)\b|\bnfs\b", " nf ", value)
+    value = re.sub(r"[^a-z0-9]+", " ", value).strip()
+    value = re.sub(r"\be\s+mail\b", "email", value)
+    return value
 
 
 def _load_yaml(path: Path) -> dict:
     return yaml.safe_load(path.read_text(encoding="utf-8"))
 
 
-def load_taxonomy(path: Path = TAXONOMY_PATH) -> dict:
-    return _load_yaml(path)["grupos"]
+def load_dictionary(path: Path = DICTIONARY_PATH) -> dict:
+    dictionary = _load_yaml(path)
+    allowed = set(dictionary["classes_permitidas"])
+    seen_ids = set()
+    cause_classes = {}
+    for intent in dictionary["intencoes"]:
+        if intent["id"] in seen_ids:
+            raise ValueError(f"ID de intenção duplicado: {intent['id']}")
+        seen_ids.add(intent["id"])
+        if intent["classificacao"] not in allowed:
+            raise ValueError(
+                f"Classificação fora do contrato em {intent['id']}: "
+                f"{intent['classificacao']}"
+            )
+        cause = intent["causa_padrao"]
+        previous = cause_classes.setdefault(cause, intent["classificacao"])
+        if previous != intent["classificacao"]:
+            raise ValueError(
+                f"Causa padrão '{cause}' aponta para mais de uma classificação."
+            )
+    return dictionary
+
+
+def load_taxonomy(path: Path = DICTIONARY_PATH) -> dict:
+    """Mapa causa padrão -> classificação oficial, derivado do dicionário."""
+    return {
+        intent["causa_padrao"]: intent["classificacao"]
+        for intent in load_dictionary(path)["intencoes"]
+    }
 
 
 def load_objects(path: Path = TAXONOMY_PATH) -> dict:
     return _load_yaml(path)["objetos_operacionais"]
 
 
-def load_rules(path: Path = RULES_PATH, include_draft: bool = False) -> dict:
-    allowed = {APPROVED, DRAFT} if include_draft else {APPROVED}
+def load_rules(
+    path: Path = DICTIONARY_PATH,
+    include_draft: bool = False,
+) -> dict:
+    """Compatibilidade: expõe intenções indexadas por ID, sem status/score."""
     return {
-        name: rule
-        for name, rule in _load_yaml(path)["rules"].items()
-        if rule.get("status") in allowed
+        intent["id"]: intent
+        for intent in load_dictionary(path)["intencoes"]
     }
 
 
-def validate_taxonomy(history: pd.DataFrame, taxonomy: dict, rules: dict) -> list[str]:
-    """Problemas que invalidam a medicao: regra sem grupo, variante duplicada ou fora do historico."""
-
+def validate_dictionary(dictionary: dict | None = None) -> list[str]:
+    dictionary = dictionary or load_dictionary()
+    allowed = set(dictionary["classes_permitidas"])
     problems = []
-    seen = {}
-    for group, data in taxonomy.items():
-        for variant in data["variantes"]:
-            key = variant.strip().casefold()
-            if key in seen:
-                problems.append(f"variante repetida: '{variant}' em {seen[key]} e {group}")
-            seen[key] = group
-
-    for name, rule in rules.items():
-        if rule["grupo"] not in taxonomy:
-            problems.append(f"regra '{name}' aponta para grupo inexistente '{rule['grupo']}'")
-
-    for _, record in history.iterrows():
-        cause = record.get("Causa raiz")
-        if pd.isna(cause):
-            continue
-        key = str(cause).strip().casefold()
-        group = seen.get(key)
-        if group is None:
-            problems.append(f"causa sem grupo na taxonomia: '{str(cause).strip()}'")
-            continue
-        classification = record.get("Classificação")
-        if pd.notna(classification) and classification != taxonomy[group]["classificacao"]:
+    ids = set()
+    cause_classes = {}
+    for intent in dictionary["intencoes"]:
+        if intent["id"] in ids:
+            problems.append(f"ID duplicado: {intent['id']}")
+        ids.add(intent["id"])
+        if intent["classificacao"] not in allowed:
+            problems.append(f"Classe fora do contrato: {intent['id']}")
+        previous = cause_classes.setdefault(
+            intent["causa_padrao"],
+            intent["classificacao"],
+        )
+        if previous != intent["classificacao"]:
             problems.append(
-                f"'{str(cause).strip()}': historico='{classification}' "
-                f"taxonomia='{taxonomy[group]['classificacao']}'"
+                f"Causa padrão com classes conflitantes: {intent['causa_padrao']}"
             )
+        if not intent.get("padroes"):
+            problems.append(f"Intenção sem padrões: {intent['id']}")
     return sorted(set(problems))
 
 
-def _has_term(text: str, term: str) -> bool:
-    # Casa no inicio de palavra: "boleto" casa "boletos".
-    return re.search(rf"(?<!\w){re.escape(normalize_text(term))}", text) is not None
+def _contains_phrase(text: str, phrase: str) -> bool:
+    normalized = normalize_text(phrase)
+    return bool(normalized) and f" {normalized} " in f" {text} "
 
 
-def _match(text: str, rule: dict) -> list[str] | None:
-    """Termos encontrados, ou None se a regra nao se aplica."""
-
-    if any(_has_term(text, term) for term in rule.get("excluded", [])):
-        return None
-    if not all(_has_term(text, term) for term in rule.get("required", [])):
-        return None
-
-    optional = [term for term in rule.get("optional", []) if _has_term(text, term)]
-    if rule.get("optional") and not optional:
-        return None
-    return list(rule.get("required", [])) + optional
+def _matches_pattern(text: str, pattern: str) -> bool:
+    parts = [part.strip() for part in pattern.split("+")]
+    return all(_contains_phrase(text, part) for part in parts)
 
 
-def classify(description, rules: dict, taxonomy: dict) -> dict:
-    """Escolhe o grupo com mais termos; empate entre classificacoes distintas = sem resposta."""
-
-    text = normalize_text(description)
-    matches = {
-        name: terms
-        for name, rule in rules.items()
-        if (terms := _match(text, rule)) is not None
-    }
-    empty = {"grupo": None, "causa_canonica": None, "classificacao": None,
-             "regra": None, "termos": [], "candidatas": []}
-    if not matches:
-        return empty
-
-    best = max(len(terms) for terms in matches.values())
-    top = [name for name, terms in matches.items() if len(terms) == best]
-    classifications = {taxonomy[rules[name]["grupo"]]["classificacao"] for name in top}
-    if len(classifications) > 1:
-        return {**empty, "candidatas": top}
-
-    group = rules[top[0]]["grupo"]
-    return {
-        "grupo": group,
-        "causa_canonica": taxonomy[group]["causa_canonica"],
-        "classificacao": taxonomy[group]["classificacao"],
-        "regra": top[0],
-        "termos": matches[top[0]],
-        "candidatas": top,
-    }
-
-
-def _run_history(history: pd.DataFrame, rules: dict, taxonomy: dict) -> pd.DataFrame:
-    rows = []
-    for _, record in history.iterrows():
-        real = record.get("Classificação")
-        if pd.isna(real) or pd.isna(record.get("Causa raiz")):
+def _apply_precedence(matches: list[dict], dictionary: dict) -> list[dict]:
+    remaining = {intent["id"]: intent for intent in matches}
+    for rule in dictionary.get("precedencia", []):
+        preferred = rule["preferir"]
+        if preferred not in remaining:
             continue
-        found = classify(record.get("Descrição detalhada"), rules, taxonomy)
-        rows.append({
-            "real": real,
-            "motor": found["classificacao"],
-            "regra": found["regra"],
-            "ambiguo": found["classificacao"] is None and len(found["candidatas"]) > 1,
-        })
-    return pd.DataFrame(rows)
+        for lower_priority in rule.get("sobre", []):
+            remaining.pop(lower_priority, None)
+    return list(remaining.values())
 
 
-def rule_stats(history: pd.DataFrame, rules: dict, taxonomy: dict) -> dict:
-    """Por regra: (acertos de classificacao, respostas) no historico."""
+def identify_intent(description, dictionary: dict | None = None) -> dict:
+    """Encontra intenções explícitas e deixa conflitos reais sem escolha arbitrária."""
+    dictionary = dictionary or load_dictionary()
+    text = normalize_text(description)
+    if not text:
+        return {
+            "status": "Sem correspondência",
+            "intencao_id": None,
+            "intencao_identificada": None,
+            "causa_identificada": [],
+            "causa_padrao": None,
+            "classificacao": None,
+            "regra": None,
+            "candidatas": [],
+            "ambiguo": False,
+        }
 
-    frame = _run_history(history, rules, taxonomy)
-    answered = frame[frame["regra"].notna()]
+    matches = []
+    matched_patterns = {}
+    for intent in dictionary["intencoes"]:
+        found = [
+            pattern
+            for pattern in intent.get("padroes", [])
+            if _matches_pattern(text, pattern)
+        ]
+        if not found:
+            continue
+        if any(
+            _matches_pattern(text, excluded)
+            for excluded in intent.get("exclusoes", [])
+        ):
+            continue
+        matches.append(intent)
+        matched_patterns[intent["id"]] = found
+
+    matches = _apply_precedence(matches, dictionary)
+    if not matches:
+        return {
+            "status": "Sem correspondência",
+            "intencao_id": None,
+            "intencao_identificada": None,
+            "causa_identificada": [],
+            "causa_padrao": None,
+            "classificacao": None,
+            "regra": None,
+            "candidatas": [],
+            "ambiguo": False,
+        }
+
+    causes = list(dict.fromkeys(intent["causa_padrao"] for intent in matches))
+    classes = list(dict.fromkeys(intent["classificacao"] for intent in matches))
+    unique_cause = len(causes) == 1
+    unique_class = len(classes) == 1
+    status = "Sugerida" if unique_cause and unique_class else "Ambígua"
+    selected = matches[0] if unique_cause else None
+    matched = []
+    seen_patterns = set()
+    for intent in matches:
+        for pattern in matched_patterns[intent["id"]]:
+            normalized_pattern = normalize_text(pattern.replace("+", " "))
+            if normalized_pattern not in seen_patterns:
+                seen_patterns.add(normalized_pattern)
+                matched.append(pattern)
     return {
-        name: (int((group["real"] == group["motor"]).sum()), len(group))
-        for name, group in answered.groupby("regra")
+        "status": status,
+        "intencao_id": selected["id"] if selected else None,
+        "intencao_identificada": "; ".join(
+            dict.fromkeys(intent["intencao"] for intent in matches)
+        ),
+        "causa_identificada": matched,
+        "causa_padrao": causes[0] if unique_cause else None,
+        "classificacao": classes[0] if unique_class else None,
+        "regra": selected["id"] if selected else None,
+        "candidatas": [intent["id"] for intent in matches],
+        "ambiguo": status == "Ambígua",
     }
 
 
-def suggest(description, rules: dict, taxonomy: dict, objects: dict, stats: dict) -> dict:
-    """Sugestao nao vinculante; vazia quando nenhuma regra se aplica sem ambiguidade."""
+def identify_cause(description, rules=None) -> dict:
+    """Alias de compatibilidade para o passo novo de identificação da intenção."""
+    return identify_intent(description, _dictionary_from_rules(rules))
 
+
+def _dictionary_from_rules(rules=None) -> dict:
+    if rules is None:
+        return load_dictionary()
+    if isinstance(rules, dict) and "intencoes" in rules:
+        return rules
+    intents = list(rules.values()) if isinstance(rules, dict) else list(rules)
+    base = load_dictionary()
+    return {**base, "intencoes": intents}
+
+
+def normalize_root_cause(
+    identified: dict,
+    dictionary: dict | None = None,
+) -> dict:
+    """Resolve a causa padrão no dicionário e deriva dela a classe oficial."""
+    dictionary = dictionary or load_dictionary()
+    cause = identified.get("causa_padrao")
+    class_by_cause = {
+        intent["causa_padrao"]: intent["classificacao"]
+        for intent in dictionary["intencoes"]
+    }
+    return {
+        "causa_canonica": cause,
+        "classificacao": class_by_cause.get(
+            cause,
+            identified.get("classificacao"),
+        ),
+    }
+
+
+def classify(description, rules=None, taxonomy=None) -> dict:
+    """Descrição -> intenção -> causa padrão -> classificação oficial."""
+    dictionary = _dictionary_from_rules(rules)
+    identified = identify_intent(description, dictionary)
+    normalized = normalize_root_cause(identified, dictionary)
+    return {**identified, **normalized}
+
+
+def suggest(
+    description,
+    rules=None,
+    taxonomy=None,
+    objects: dict | None = None,
+    stats: dict | None = None,
+) -> dict:
+    """Retorna uma classificação explicável; não pontua nem escolhe por score."""
     found = classify(description, rules, taxonomy)
-    if found["classificacao"] is None:
-        return {"objeto_operacional": None, "classificacao": None,
-                "confianca": None, "motivo": None}
-
-    hits, total = stats.get(found["regra"], (0, 0))
+    objects = objects or load_objects()
+    classification = found["classificacao"]
     return {
-        "objeto_operacional": objects[found["classificacao"]],
-        "classificacao": found["classificacao"],
-        "confianca": round((hits + 1) / (total + 2), 2),  # Laplace: evita 100% com poucos casos
-        "motivo": (f"Regra '{found['regra']}' (termos: {', '.join(found['termos'])}); "
-                   f"acertou {hits}/{total} no histórico."),
+        **found,
+        "objeto_operacional": objects.get(classification),
+        "confianca": None,
+        "motivo": found["intencao_identificada"],
     }
 
 
-def build_suggestions(descriptions: pd.Series, history: pd.DataFrame) -> pd.DataFrame:
-    """Sugestoes para cada trecho de problema, calibradas no historico."""
-
-    rules = load_rules(include_draft=True)
-    taxonomy = load_taxonomy()
+def build_suggestions(
+    descriptions: pd.Series,
+    history: pd.DataFrame | None = None,
+) -> pd.DataFrame:
+    """Classifica Descrição detalhada; history fica na assinatura por compatibilidade."""
+    dictionary = load_dictionary()
     objects = load_objects()
-    stats = rule_stats(history, rules, taxonomy)
-    rows = [suggest(text, rules, taxonomy, objects, stats) for text in descriptions]
+    rows = [
+        suggest(description, dictionary, objects=objects)
+        for description in descriptions
+    ]
     return pd.DataFrame(rows, index=descriptions.index)
 
 
-def evaluate(history: pd.DataFrame, rules: dict, taxonomy: dict) -> dict:
-    """Acerto da classificacao do motor contra a coluna Classificação do historico."""
-
-    frame = _run_history(history, rules, taxonomy)
+def evaluate(history: pd.DataFrame, dictionary: dict | None = None) -> dict:
+    """Compara classes sugeridas com as classes históricas, sem score nem treino."""
+    dictionary = _dictionary_from_rules(dictionary)
+    rows = []
+    for _, record in history.iterrows():
+        actual = record.get("Classificação")
+        if pd.isna(actual) or not str(actual).strip() or str(actual).strip() == "#N/A":
+            continue
+        result = classify(record.get("Descrição detalhada"), dictionary)
+        rows.append({
+            "real": str(actual).strip(),
+            "motor": result["classificacao"],
+            "status": result["status"],
+            "intencao": result["intencao_id"],
+        })
+    frame = pd.DataFrame(rows)
+    if frame.empty:
+        frame = pd.DataFrame(columns=["real", "motor", "status", "intencao"])
     answered = frame[frame["motor"].notna()]
+    correct = int((answered["real"] == answered["motor"]).sum())
     return {
         "total": len(frame),
         "com_resposta": len(answered),
-        "ambiguos": int(frame["ambiguo"].sum()),
-        "acertos": int((answered["real"] == answered["motor"]).sum()),
+        "sem_correspondencia": int((frame["status"] == "Sem correspondência").sum()),
+        "ambiguos": int((frame["status"] == "Ambígua").sum()),
+        "acertos": correct,
+        "acuracia_entre_respostas": (
+            round(correct / len(answered), 4) if len(answered) else None
+        ),
         "por_classificacao": {
             name: {
                 "total": int((frame["real"] == name).sum()),
@@ -218,31 +324,21 @@ def evaluate(history: pd.DataFrame, rules: dict, taxonomy: dict) -> dict:
 
 
 def main() -> None:
-    include_draft = "--incluir-rascunho" in sys.argv
-    rules = load_rules(include_draft=include_draft)
-    taxonomy = load_taxonomy()
-    scope = "aprovadas + rascunho" if include_draft else "aprovadas"
-    print(f"Grupos na taxonomia: {len(taxonomy)} | regras ({scope}): {len(rules)}")
-
+    dictionary = load_dictionary()
     history = load_compilado_sheet(TEMPLATE_PATH)
-    problems = validate_taxonomy(history, taxonomy, rules)
-    print(f"Inconsistencias taxonomia x historico: {len(problems)}")
-    for problem in problems[:10]:
-        print(f"  - {problem}")
-
-    if not rules:
-        print("Nenhuma regra aprovada. Use --incluir-rascunho para avaliar rascunhos.")
-        return
-
-    result = evaluate(history, rules, taxonomy)
+    result = evaluate(history, dictionary)
     answered = result["com_resposta"]
-    print(f"\nHistoricos avaliados: {result['total']}")
-    print(f"Cobertura (motor respondeu): {answered} ({answered / result['total']:.1%})")
-    print(f"Ambiguos entre classificacoes: {result['ambiguos']}")
+    print(f"Intenções no dicionário: {len(dictionary['intencoes'])}")
+    print(f"Históricos avaliados: {result['total']}")
+    print(f"Cobertura: {answered}/{result['total']}")
+    print(f"Sem correspondência: {result['sem_correspondencia']}")
+    print(f"Ambíguos: {result['ambiguos']}")
     if answered:
-        print(f"ACERTO DA CLASSIFICACAO: {result['acertos']}/{answered} "
-              f"({result['acertos'] / answered:.1%})")
-    print("\nPor classificacao (total | respondidos | corretos):")
+        print(
+            f"Acerto de classe no histórico: {result['acertos']}/{answered} "
+            f"({result['acuracia_entre_respostas']:.1%})"
+        )
+    print("\nPor classificação (total | respondidos | corretos):")
     for name, data in result["por_classificacao"].items():
         print(f"  {data['total']:>4} | {data['respondidos']:>4} | {data['corretos']:>4}  {name}")
 

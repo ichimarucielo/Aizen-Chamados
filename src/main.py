@@ -13,7 +13,6 @@ from extract import (
 from parse_description import (
     normalize_description,
     extract_cnpj,
-    extract_problem,
 )
 
 from root_cause_engine import build_suggestions
@@ -63,7 +62,13 @@ COMPILADO_COLUMNS = [
 ]
 
 SUGGESTION_COLUMNS = [
+    "Intenção Identificada", "Causa Identificada", "Causa Raiz Padrão",
     "Objeto Operacional Sugerido", "Classificação Sugerida", "Score Confiança",
+    "Regra Sugerida", "Status da Sugestão", "Ambiguidade",
+]
+
+VALIDATION_COLUMNS = [
+    "Objeto Operacional Validado", "Classificação Validada", "Concordância",
 ]
 
 
@@ -146,14 +151,43 @@ def build_n2_dataframe(
     result["Origem"] = ""
 
     suggestions = build_suggestions(
-        dataframe["Descrição"].map(extract_problem),
+        dataframe["DESCRICAO_NORMALIZADA"],
         history_df,
+    )
+    identified_causes = suggestions["causa_identificada"].map(
+        lambda terms: "; ".join(terms) if terms else ""
+    )
+    canonical_causes = suggestions["causa_canonica"]
+    result["Intenção Identificada"] = suggestions["intencao_identificada"]
+    result["Causa Identificada"] = identified_causes
+    result["Causa Raiz Padrão"] = canonical_causes
+    result["Causa raiz"] = canonical_causes.where(
+        canonical_causes.notna(),
+        result["Causa raiz"],
+    )
+    result["Classificação"] = suggestions["classificacao"].where(
+        suggestions["classificacao"].notna(),
+        result["Classificação"],
     )
     result["Objeto Operacional Sugerido"] = suggestions["objeto_operacional"]
     result["Classificação Sugerida"] = suggestions["classificacao"]
     result["Score Confiança"] = suggestions["confianca"]
+    result["Regra Sugerida"] = suggestions["regra"]
+    result["Ambiguidade"] = suggestions["ambiguo"]
+    result["Status da Sugestão"] = [
+        "Ambígua" if ambiguous
+        else "Sugerida" if pd.notna(classification)
+        else "Sem correspondência"
+        for classification, ambiguous in zip(
+            suggestions["classificacao"],
+            suggestions["ambiguo"],
+        )
+    ]
+    result["Objeto Operacional Validado"] = ""
+    result["Classificação Validada"] = ""
+    result["Concordância"] = ""
 
-    return result[COMPILADO_COLUMNS + SUGGESTION_COLUMNS]
+    return result[COMPILADO_COLUMNS + SUGGESTION_COLUMNS + VALIDATION_COLUMNS]
 
 
 def main() -> None:
