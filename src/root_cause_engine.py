@@ -118,16 +118,143 @@ def _matches_pattern(text: str, pattern: str) -> bool:
     return all(_contains_phrase(text, part) for part in parts)
 
 
-def _apply_precedence(matches: list[dict], dictionary: dict) -> list[dict]:
-    remaining = {intent["id"]: intent for intent in matches}
+def _pattern_is_explicit_action(pattern: str) -> bool:
+    """
+    Identifica se o padrão representa uma ação operacional explícita,
+    em vez de apenas um contexto/motivo.
+    """
+    normalized = normalize_text(pattern)
+
+    action_markers = (
+        "cancelar",
+        "cancelamento",
+        "encerrar",
+        "encerramento",
+        "reemitir",
+        "reemissao",
+        "substituir",
+        "substituicao",
+        "prorrogar",
+        "prorrogacao",
+        "alterar",
+        "alteracao",
+        "enviar",
+        "reenvio",
+        "solicitar",
+        "solicitacao",
+        "corrigir",
+        "correcao",
+        "incluir",
+        "trocar",
+        "mudando",
+        "congelar",
+        "congelamento",
+        "renovacao",
+        "confirmar",
+        "consultar",
+        "consulta",
+        "verificar",
+        "esclarecer",
+        "contestar",
+        "contestacao",
+    )
+
+    return any(marker in normalized for marker in action_markers)
+
+
+def _pattern_is_explicit_action(pattern: str) -> bool:
+    """
+    Identifica se o padrão representa uma ação operacional explícita.
+    """
+    normalized = normalize_text(pattern)
+
+    action_markers = (
+        "cancelar",
+        "cancelamento",
+        "encerrar",
+        "encerramento",
+        "reemitir",
+        "reemissao",
+        "substituir",
+        "substituicao",
+        "prorrogar",
+        "prorrogacao",
+        "alterar",
+        "alteracao",
+        "enviar",
+        "reenvio",
+        "solicitar",
+        "solicitacao",
+        "corrigir",
+        "correcao",
+        "incluir",
+        "trocar",
+        "mudando",
+        "congelar",
+        "congelamento",
+        "renovacao",
+        "confirmar",
+        "consultar",
+        "consulta",
+        "verificar",
+        "esclarecer",
+        "contestar",
+        "contestacao",
+    )
+
+    return any(marker in normalized for marker in action_markers)
+
+
+def _apply_precedence(
+    matches: list[dict],
+    dictionary: dict,
+    matched_patterns: dict[str, list[str]] | None = None,
+) -> list[dict]:
+    """
+    Aplica precedência apenas para resolver contexto incidental.
+
+    Duas ações explícitas de classes diferentes continuam sendo conflito
+    e devem chegar ao identify_intent() para serem classificadas como
+    Ambígua.
+    """
+    matched_patterns = matched_patterns or {}
+
+    explicit_intents = []
+
+    for intent in matches:
+        patterns = matched_patterns.get(intent["id"], [])
+
+        if any(
+            _pattern_is_explicit_action(pattern)
+            for pattern in patterns
+        ):
+            explicit_intents.append(intent)
+
+    explicit_classes = {
+        intent["classificacao"]
+        for intent in explicit_intents
+        if intent.get("classificacao")
+    }
+
+    # Duas ações explícitas de classes diferentes = conflito real.
+    if len(explicit_classes) > 1:
+        return matches
+
+    remaining = {
+        intent["id"]: intent
+        for intent in matches
+    }
+
     for rule in dictionary.get("precedencia", []):
         preferred = rule["preferir"]
+
         if preferred not in remaining:
             continue
+
         for lower_priority in rule.get("sobre", []):
             remaining.pop(lower_priority, None)
-    return list(remaining.values())
 
+    return list(remaining.values())
 
 def identify_intent(description, dictionary: dict | None = None) -> dict:
     """Encontra intenções explícitas e deixa conflitos reais sem escolha arbitrária."""
@@ -164,7 +291,11 @@ def identify_intent(description, dictionary: dict | None = None) -> dict:
         matches.append(intent)
         matched_patterns[intent["id"]] = found
 
-    matches = _apply_precedence(matches, dictionary)
+    matches = _apply_precedence(
+        matches,
+        dictionary,
+        matched_patterns,
+    )
     if not matches:
         return {
             "status": "Sem correspondência",

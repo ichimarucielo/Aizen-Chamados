@@ -32,6 +32,7 @@ VALIDATION_COLUMNS = [
     "Concordância",
 ]
 
+UPDATE_COLUMNS = SUGGESTION_COLUMNS + TRACKING_COLUMNS
 
 def _normalize_id(value) -> str:
     if pd.isna(value):
@@ -164,10 +165,21 @@ def export_plano_n2(
         for column in range(1, worksheet.max_column + 1)
     }
     ticket_column = headers["Número do Chamado"]
-    existing_ids = {
-        _normalize_id(worksheet.cell(row, ticket_column).value)
-        for row in range(HEADER_ROW + 1, worksheet.max_row + 1)
-    }
+    row_by_id = {}
+    for r in range(HEADER_ROW + 1, worksheet.max_row + 1):
+        i = _normalize_id(worksheet.cell(r, ticket_column).value)
+        if i:
+            row_by_id[i] = r
+    existing_ids = set(row_by_id)
+
+    # atualiza sugestões de chamados que já estão na aba
+    for _, row in dataframe.iterrows():
+        r = row_by_id.get(_normalize_id(row["Número do Chamado"]))
+        if r is None:
+            continue
+        for name in UPDATE_COLUMNS:
+            value = row.get(name, "")
+            worksheet.cell(r, headers[name]).value = None if pd.isna(value) else value
 
     new_rows = dataframe[
         ~dataframe["Número do Chamado"].map(_normalize_id).isin(existing_ids)
@@ -186,7 +198,7 @@ def export_plano_n2(
 
         for column_name, column in headers.items():
             if column_name in new_rows.columns:
-                worksheet.cell(target_row, column, row[column_name])
+                worksheet.cell(target_row, column, None if pd.isna(row[column_name]) else row[column_name])
 
         _copy_row_format_and_formulas(
             worksheet,

@@ -423,7 +423,6 @@ intencoes:
   - cancelar produto contratado
   - solicito o cancelamento do mesmo + contrato
   - cancelamento do serviço
-  - cancelamento do contrato
   aliases_historicos:
   - Cancelamento de contrato
   - Cancelamento contrato (produto) / NF
