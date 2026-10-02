@@ -1,38 +1,196 @@
-# Rascunho de regras operacionais.
-# Os termos abaixo sao candidatos e precisam ser aprovados pela equipe N2.
-version: 1
-status: draft
-source: data/output/causa_raiz_analise.json
+# Regras: descricao -> grupo da taxonomia (causa_raiz_taxonomia.yaml) -> classificacao.
+# Termos casam no inicio de palavra, sem acento/caixa.
+# required: todos presentes | optional: ao menos um | excluded: nenhum.
+# "aprovado" = usado no pipeline | "revisar" = so avaliacao | "descartar" = precisao baixa.
+version: 3
 
 rules:
   cancelamento_nf_reemissao:
     status: revisar
     required: []
     optional:
-      - cancelamento
-      - nota fiscal
+      - cancelar nf
+      - cancelamento de nf
+      - cancelamento das nf
+      - cancelamento nf
+      - cancelar a nf
+      - cancelar nota
+      - cancelamento de nota
+      - cancelamento das notas
+      - reemitir
       - reemissao
     excluded:
-      - boleto
-    causa_raiz: "Cancelamento de NF / reemissão"
+      - prorroga
+      - congelamento
+      - contrato
+    grupo: cancelamento_reemissao_nf
 
-  cobranca_duplicada:
+  contestacao_cobranca:
     status: revisar
+    required: []
+    optional:
+      - contest
+      - cobranca indevida
+      - cobrado a mais
+      - cobrada a mais
+      - divergencia
+      - volumetria
+    excluded:
+      - cancelar nf
+      - cancelamento de nota
+    grupo: contestacao_cobranca
+
+  duplicidade_cobranca:
+    status: descartar  # 4/12 acertos de classificacao no historico
     required: []
     optional:
       - duplicidade
+      - duplicada
+      - duplicado
       - cobrado duas vezes
-      - valor duplicado
     excluded: []
-    causa_raiz: "Duplicidade De Cobrança"
+    grupo: ajuste_cobranca
 
-  boleto:
+  estorno_cobranca:
     status: revisar
     required: []
     optional:
-      - boleto
-      - vencimento
-      - juros
-      - segunda via
+      - estorno
+      - estornar
     excluded: []
-    causa_raiz: "Reenvio de boleto"
+    grupo: ajuste_cobranca
+
+  duvidas_cobranca:
+    status: descartar  # 2/4
+    required:
+      - duvida
+    optional:
+      - cobranca
+      - fatura
+      - faturamento
+    excluded:
+      - cancelar nf
+      - cancelamento
+    grupo: duvida_cobranca
+
+  reenvio_boleto_nf:
+    status: descartar  # 6/16
+    required: []
+    optional:
+      - nao recebemos
+      - nao recebi
+      - reenvio
+      - reenviar
+      - segunda via
+      - 2a via
+    excluded:
+      - prorroga
+      - cancelar nf
+      - cancelamento de nota
+    grupo: reenvio_boleto
+
+  prorrogacao_boleto:
+    status: revisar
+    required: []
+    optional:
+      - prorroga
+      - alteracao de vencimento
+      - alterar vencimento
+      - alterar o vencimento
+      - nova data de vencimento
+    excluded: []
+    grupo: prorrogacao_boleto
+
+  congelamento_contrato:
+    status: revisar
+    required: []
+    optional:
+      - congelamento
+      - congelar
+    excluded: []
+    grupo: congelamento_contrato
+
+  cancelamento_contrato:
+    status: descartar  # 2/5
+    required: []
+    optional:
+      - cancelamento de contrato
+      - cancelamento do contrato
+      - cancelar contrato
+      - cancelar o contrato
+      - rescisao
+      - encerramento do contrato
+    excluded:
+      - congelamento
+    grupo: cancelamento_contrato
+
+  atualizacao_cadastral:
+    status: revisar
+    required: []
+    optional:
+      - atualizacao cadastral
+      - atualizacao de cadastro
+      - atualizar cadastro
+      - atualizar o cadastro
+      - alteracao cadastral
+      - alteracao de cadastro
+      - troca de e-mail
+      - alterar e-mail
+      - alterar o e-mail
+    excluded:
+      - cancelar nf
+      - cancelamento
+    grupo: atualizacao_cadastral
+
+  carta_quitacao:
+    status: revisar
+    required: []
+    optional:
+      - carta de quitacao
+      - circularizacao
+      - quitacao
+    excluded: []
+    grupo: carta_quitacao
+
+  alterar_data_emissao_nf:
+    status: descartar  # 2/5
+    required: []
+    optional:
+      - data de emissao
+      - alterar a data da nf
+      - alterar data da nf
+    excluded: []
+    grupo: ajuste_nf_po_data_codigo
+
+  incluir_po_nf:
+    status: revisar
+    required: []
+    optional:
+      - incluir po
+      - incluir o po
+      - inclusao de po
+      - inclusao do po
+    excluded: []
+    grupo: ajuste_nf_po_data_codigo
+
+  mudanca_conta_recebimento:
+    status: revisar
+    required: []
+    optional:
+      - conta para recebimento
+      - conta de recebimento
+      - dados bancarios
+      - troca de conta
+      - mudanca de conta
+    excluded: []
+    grupo: conta_recebimento
+
+  correcao_descritivo_nf:
+    status: descartar  # 0/2
+    required: []
+    optional:
+      - descritivo
+      - descricao da nota
+      - descricao da nf
+    excluded: []
+    grupo: ajuste_fiscal_nf

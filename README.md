@@ -8,6 +8,14 @@ Ler o relatório `monitoramento.xlsx`, aplicar os tratamentos já definidos no p
 
 O projeto não usa IA generativa, API Salesforce, banco de dados ou microsserviços.
 
+## Documentos de referência
+
+Explicam como o N2 pensa e devem ser lidos antes de mexer em regras:
+
+- `classification_contract.md`: o objeto operacional de cada classificação, a hipótese H1 e o indicador principal (acerto de classificação).
+- `data/input/causa_raiz_taxonomia.yaml`: variante histórica de causa raiz, grupo e classificação. É um rascunho para revisão do N2.
+- `src/decision_analysis.py`: decisão mais frequente por causa raiz, com confiança, e o relatório de quais causas cada classificação absorve.
+
 ## Fluxo operacional
 
 ```text
@@ -44,17 +52,22 @@ A chave de idempotência é `Número do Chamado`. Chamados já existentes no tem
 aizen_chamados/
 ├── data/
 │   ├── input/
+│   │   ├── causa_raiz_rules.yaml
+│   │   ├── causa_raiz_taxonomia.yaml
 │   │   ├── monitoramento.xlsx
 │   │   └── plano_n2_template.xlsx
 │   └── output/
 ├── src/
 │   ├── business_rules.py
+│   ├── decision_analysis.py
 │   ├── export.py
 │   ├── extract.py
 │   ├── lookup.py
 │   ├── main.py
 │   ├── parse_description.py
-│   └── root_cause_analysis.py
+│   ├── root_cause_analysis.py
+│   └── root_cause_engine.py
+├── classification_contract.md
 └── README.md
 ```
 
@@ -89,6 +102,23 @@ O dicionário operacional em estado de rascunho está em
 `data/input/causa_raiz_rules.yaml`. Ele só deve ser usado no pipeline depois
 da validação dos termos pela equipe N2.
 
+Para medir a decisão histórica por causa raiz e o relatório classificação → causas:
+
+```powershell
+$env:PYTHONPATH = "src"
+python src/decision_analysis.py
+```
+
+Para avaliar o acerto de classificação das regras contra o histórico (use
+`--incluir-rascunho` para incluir regras ainda não aprovadas):
+
+```powershell
+$env:PYTHONPATH = "src"
+python src/root_cause_engine.py --incluir-rascunho
+```
+
+Esses dois scripts são de análise e não estão ligados ao `main.py`.
+
 ## O que já funciona
 
 - Leitura do relatório Salesforce.
@@ -112,4 +142,5 @@ da validação dos termos pela equipe N2.
 1. Validar com a equipe N2 quais campos manuais devem continuar sendo preenchidos depois da exportação.
 2. Definir a origem oficial de `Causa raiz` e `Classificação` quando esses campos vierem vazios no Salesforce.
 3. Adicionar testes automatizados para novos layouts de relatório e para a idempotência do arquivo final.
-4. Revisar os candidatos gerados por `root_cause_analysis.py` e transformar somente as regras aprovadas pela equipe N2 em lógica operacional.
+4. Revisar com o N2 o `classification_contract.md`, a taxonomia e as regras em rascunho. Só regras aprovadas entram no pipeline.
+5. Testar a hipótese H1 em chamados novos, medindo o acerto de classificação.

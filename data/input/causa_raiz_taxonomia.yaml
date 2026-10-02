@@ -1,0 +1,227 @@
+# Taxonomia: variante historica de causa raiz -> grupo -> classificacao (6 valores).
+# Gerada do historico (Compilado chamados); cada variante mantem a classificacao
+# que o historico lhe deu. Grupos "revisar_*" tem classificacao historica incomum.
+version: 1
+
+grupos:
+  # --- Cancelamento e Reemissão de Nota Fiscal ---
+  cancelamento_reemissao_nf:
+    classificacao: "Cancelamento e Reemissão de Nota Fiscal"
+    causa_canonica: "Cancelamento de NF / reemissão"
+    variantes:
+      - "Cancelamento de NF / reemissão"
+      - "Cancelamento de NF"
+      - "Cancelamento de Nota Fiscal"
+      - "Cancelamento de Nota Fiscal / Reemissão"
+      - "Cancelamento de NF / Reemissão (Incluir PO)"
+      - "Cancelamento de NF / Reemissão (Mudança CNPJ)"
+
+  ajuste_nf_po_data_codigo:
+    classificacao: "Cancelamento e Reemissão de Nota Fiscal"
+    causa_canonica: "Reemissão de NF (incluir PO)"
+    variantes:
+      - "Reemissão de NF (incluir PO)"
+      - "Inclusão de PO NF"
+      - "Alterar data de emissão da NF"
+      - "Mudança de código NF"
+
+  revisar_classificacao_nf:
+    classificacao: "Cancelamento e Reemissão de Nota Fiscal"
+    causa_canonica: "Revisar"
+    variantes:
+      - "Cessão contratual"
+      - "DÚVIDA SOBRE A COBRANÇA DO MINIMO MENSAL NO PERÍODO DE INTEGRAÇÃO"
+
+  # --- Cobrança e Contestação ---
+  contestacao_cobranca:
+    classificacao: "Cobrança e Contestação"
+    causa_canonica: "Contestação de cobrança"
+    variantes:
+      - "Contestação de cobrança"
+      - "Conciliação / divergência simples"
+      - "questionar a volumetria cobrada referente ao produto 3DS"  # sem classificacao no historico
+
+  ajuste_cobranca:
+    classificacao: "Cobrança e Contestação"
+    causa_canonica: "Ajuste de cobrança / faturamento"
+    variantes:
+      - "Ajuste de cobrança / faturamento"
+      - "Cobrança retroativa"
+      - "Duplicidade De Cobrança"
+      - "Duplicidade nf de antifraude"
+      - "Estorno de cobrança"
+      - "Estorno / Devolução financeira"
+
+  duvida_cobranca:
+    classificacao: "Cobrança e Contestação"
+    causa_canonica: "Dúvidas sobre cobrança"
+    variantes:
+      - "Dúvidas sobre cobrança"
+      - "Dúvida cobrança"
+      - "Confirmar cobrança Split"
+
+  cobranca_setup:
+    classificacao: "Cobrança e Contestação"
+    causa_canonica: "Cobrança de Setup"
+    variantes:
+      - "Cobrança de Setup"
+      - "Cobrança Setup"
+      - "Cobrança Taxa Setup"
+      - "Cobrança de Chaves de Loja"
+
+  inadimplencia:
+    classificacao: "Cobrança e Contestação"
+    causa_canonica: "Negociação Inadimplência"
+    variantes:
+      - "Negociação Inadimplência"
+
+  # --- Pagamentos, Boletos e Recebimentos ---
+  reenvio_boleto:
+    classificacao: "Pagamentos, Boletos e Recebimentos"
+    causa_canonica: "Reenvio de boleto"
+    variantes:
+      - "Reenvio de boleto"
+      - "Reenvio de boleto / NF"
+      - "Reemissão de boleto"
+      - "Solicitação de Boleto"
+      - "Cancelamento de boletos"
+
+  prorrogacao_boleto:
+    classificacao: "Pagamentos, Boletos e Recebimentos"
+    causa_canonica: "Alteração de vencimento / prorrogação"
+    variantes:
+      - "Alteração de vencimento / prorrogação"
+      - "Alteração de vencimento / Prorrogação / Reenvio de boleto"
+      - "Prorrogação de Boleto"
+      - "Prorrogação / Reenvio de boleto"
+      - "Alteração de vencimento"
+      - "Alteração de prazo de pagamento"
+
+  conta_recebimento:
+    classificacao: "Pagamentos, Boletos e Recebimentos"
+    causa_canonica: "Mudança conta recebimento"
+    variantes:
+      - "Mudança conta recebimento"
+      - "Troca de conta para depósito"
+      - "Informação conta para depósito"
+      - "Falha do repasse seller"
+
+  informacao_pagamento:
+    classificacao: "Pagamentos, Boletos e Recebimentos"
+    causa_canonica: "Informações sobre pagamento"
+    variantes:
+      - "Informações sobre pagamento"
+      - "Informações cobrança"
+      - "Informação sobre forma de pagamento"
+      - "Consulta de débitos"
+      - "Consulta financeira"
+      - "Consulta prazo pagamento"
+      - "Regularização Pendências Financeiras"
+
+  revisar_classificacao_pagamentos:
+    classificacao: "Pagamentos, Boletos e Recebimentos"
+    causa_canonica: "Revisar"
+    variantes:
+      - "Solicitação de nota fiscal"
+
+  # --- Contratos, Comercial e Cadastro ---
+  congelamento_contrato:
+    classificacao: "Contratos, Comercial e Cadastro"
+    causa_canonica: "Congelamento de contrato"
+    variantes:
+      - "Congelamento de contrato"
+
+  cancelamento_contrato:
+    classificacao: "Contratos, Comercial e Cadastro"
+    causa_canonica: "Cancelamento de contrato"
+    variantes:
+      - "Cancelamento de contrato"
+      - "Cancelamento contrato (produto) / NF"
+
+  atualizacao_cadastral:
+    classificacao: "Contratos, Comercial e Cadastro"
+    causa_canonica: "Atualização cadastral"
+    variantes:
+      - "Atualização cadastral"
+      - "Atualização cadastral (email)"
+      - "Atualização de Cadastro"
+      - "Alteração cadastral"
+      - "Alteração cadastral (telefone)"
+      - "Alteração de cadastro (e-mail)"
+      - "Alteração de cadastro (e-mail) / Reenvio de NF"
+      - "Atualização cadastral reajuste contrato"
+      - "Cadastro de MIDs"
+
+  condicoes_comerciais:
+    classificacao: "Contratos, Comercial e Cadastro"
+    causa_canonica: "Atualização Condições Comerciais"
+    variantes:
+      - "Atualização Condições Comerciais"
+      - "Atualização contrato"
+      - "Renegociação comercial"
+      - "Renegociação contrato"
+      - "Pendente Retorno Comercial"
+
+  duvida_contrato:
+    classificacao: "Contratos, Comercial e Cadastro"
+    causa_canonica: "Dúvidas sobre contrato"
+    variantes:
+      - "Dúvidas sobre contrato / cobrança"
+      - "Dúvida comercial"
+      - "Dúvidas"
+      - "Informação sobre contrato"
+
+  # --- Atendimento Administrativo e Suporte ---
+  encerrar_sem_acao:
+    classificacao: "Atendimento Administrativo e Suporte"
+    causa_canonica: "Sem solicitação, encerrar"
+    variantes:
+      - "Outros"
+      - "Sem solicitação encerrar"
+      - "Sem ação, encerrar"
+
+  carta_quitacao:
+    classificacao: "Atendimento Administrativo e Suporte"
+    causa_canonica: "Carta de quitação / circularização"
+    variantes:
+      - "Carta de quitação / circularização"
+      - "Carta de quitação"
+
+  informacoes_documentos:
+    classificacao: "Atendimento Administrativo e Suporte"
+    causa_canonica: "Informações geral"
+    variantes:
+      - "Informações geral"
+      - "Solicitação de documentos (contrato, NF, histórico)"
+      - "Reenvio de informação"
+
+  suporte_acesso:
+    classificacao: "Atendimento Administrativo e Suporte"
+    causa_canonica: "Acesso admin / portal"
+    variantes:
+      - "Acesso admin"
+      - "Dúvida acesso ao portal"
+      - "PRECISO DE ACESSO AO ADMIN - CLIENTE CONTESTA A QTDE DE TRANSAÇÕES DO PAGADOR"
+      - "Cliente reclamando da integração do produto, direcionei para a fila do comercial"
+      - "Restrição no Serasa"
+
+  # --- Faturamento e Obrigações Fiscais ---
+  duvida_faturamento:
+    classificacao: "Faturamento e Obrigações Fiscais"
+    causa_canonica: "Dúvida sobre faturamento"
+    variantes:
+      - "Dúvida sobre faturamento"
+      - "Informações sobre faturamento"
+      - "Verificação Faturamento"
+      - "Confirmação Dados Fatura"
+      - "Dúvida sobre adiantamento"
+
+  ajuste_fiscal_nf:
+    classificacao: "Faturamento e Obrigações Fiscais"
+    causa_canonica: "Correção descritivo nota fiscal"
+    variantes:
+      - "Correção descritivo nota fiscal"
+      - "Reenvio de NF"
+      - "Alteração de dados fiscais"
+      - "Incluir PO NF"
+      - "Requisito fiscal do cliente"
