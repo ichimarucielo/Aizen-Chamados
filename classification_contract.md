@@ -1,5 +1,7 @@
 # Contrato de classificação
 
+**Versão 1, congelada em 2026-10-02.** Alterações passam por revisão do N2.
+
 A classificação responde a uma pergunta: **o que o analista vai alterar (ou entregar) depois de ler o chamado?**
 
 Ela não representa o problema do cliente; representa **o tipo de trabalho operacional** que será executado.

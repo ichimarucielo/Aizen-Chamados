@@ -4,11 +4,20 @@ from copy import copy
 
 from openpyxl import load_workbook
 from openpyxl.formula.translate import Translator
+from openpyxl.utils import get_column_letter
+from openpyxl.utils.cell import range_boundaries
+from openpyxl.worksheet.table import TableColumn
 import pandas as pd
 
 
 SHEET_NAME = "Compilado chamados"
+TABLE_NAME = "Tabela2"
 HEADER_ROW = 4
+SUGGESTION_COLUMNS = [
+    "Objeto Operacional Sugerido",
+    "Classificação Sugerida",
+    "Score Confiança",
+]
 
 
 def _normalize_id(value) -> str:
@@ -49,6 +58,44 @@ def _find_last_ticket_row(
     return HEADER_ROW
 
 
+def _resize_table(worksheet, last_row: int | None = None) -> None:
+    table = worksheet.tables[TABLE_NAME]
+    min_col, min_row, _, max_row = range_boundaries(table.ref)
+    ref = (
+        f"{get_column_letter(min_col)}{min_row}:"
+        f"{get_column_letter(worksheet.max_column)}{last_row or max_row}"
+    )
+    table.ref = ref
+    if table.autoFilter is not None:
+        table.autoFilter.ref = ref
+
+
+def _ensure_columns(worksheet, names: list[str]) -> None:
+    """Cria colunas de sugestao ao lado da ultima e as inclui na tabela."""
+
+    table = worksheet.tables[TABLE_NAME]
+    existing = {
+        worksheet.cell(HEADER_ROW, column).value
+        for column in range(1, worksheet.max_column + 1)
+    }
+    for name in names:
+        if name in existing:
+            continue
+
+        column = worksheet.max_column + 1
+        header = worksheet.cell(HEADER_ROW, column, name)
+        previous = worksheet.cell(HEADER_ROW, column - 1)
+        if previous.has_style:
+            header._style = copy(previous._style)
+        worksheet.column_dimensions[get_column_letter(column)].width = 34
+
+        table.tableColumns.append(
+            TableColumn(id=len(table.tableColumns) + 1, name=name)
+        )
+
+    _resize_table(worksheet)
+
+
 def create_output_copy(
     template_path: Path,
     output_path: Path,
@@ -74,7 +121,7 @@ def export_plano_n2(
     dataframe: pd.DataFrame,
     template_path: Path,
     output_path: Path,
-) -> tuple[Path, int]:
+) -> tuple[Path, pd.DataFrame]:
     """Copia o template e acrescenta apenas chamados ainda inexistentes."""
 
     create_output_copy(template_path, output_path)
@@ -82,6 +129,7 @@ def export_plano_n2(
     workbook = load_workbook(output_path)
     worksheet = workbook[SHEET_NAME]
 
+    _ensure_columns(worksheet, SUGGESTION_COLUMNS)
     headers = {
         worksheet.cell(HEADER_ROW, column).value: column
         for column in range(1, worksheet.max_column + 1)
@@ -117,5 +165,8 @@ def export_plano_n2(
             target_row=target_row,
         )
 
+    last_row = max(source_row, next_row + len(new_rows) - 1)
+    _resize_table(worksheet, last_row)
+
     workbook.save(output_path)
-    return output_path, len(new_rows)
+    return output_path, new_rows

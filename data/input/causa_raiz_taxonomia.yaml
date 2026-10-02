@@ -1,7 +1,16 @@
 # Taxonomia: variante historica de causa raiz -> grupo -> classificacao (6 valores).
 # Gerada do historico (Compilado chamados); cada variante mantem a classificacao
 # que o historico lhe deu. Grupos "revisar_*" tem classificacao historica incomum.
+# VERSAO 1 (congelada em 2026-10-02): alteracoes passam por revisao do N2.
 version: 1
+
+objetos_operacionais:
+  "Cancelamento e Reemissão de Nota Fiscal": "Documento Fiscal"
+  "Cobrança e Contestação": "Valor Cobrado"
+  "Pagamentos, Boletos e Recebimentos": "Título Financeiro"
+  "Contratos, Comercial e Cadastro": "Contrato/Cadastro"
+  "Atendimento Administrativo e Suporte": "Informação/Atendimento"
+  "Faturamento e Obrigações Fiscais": "Parâmetro de Faturamento"
 
 grupos:
   # --- Cancelamento e Reemissão de Nota Fiscal ---

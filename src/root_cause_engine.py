@@ -1,7 +1,9 @@
-"""Descricao -> grupo -> classificacao, via regras (YAML) e taxonomia (YAML).
+"""Descricao -> grupo -> classificacao -> objeto operacional, via regras e taxonomia (YAML).
 
-Somente regras "aprovado" entram no pipeline; "revisar" so na avaliacao
-(--incluir-rascunho). Sem regra aplicavel ou com empate, nao ha resposta.
+O motor apenas SUGERE; nada e preenchido nas colunas de negocio. Sugestoes usam
+regras "aprovado" e "revisar" (nunca "descartar"). A avaliacao historica usa
+somente as aprovadas, ou tambem as rascunho com --incluir-rascunho. Sem regra
+aplicavel ou com empate entre classificacoes, nao ha sugestao.
 A metrica de sucesso e o acerto da CLASSIFICACAO, nao da causa raiz exata.
 """
 
@@ -39,6 +41,10 @@ def _load_yaml(path: Path) -> dict:
 
 def load_taxonomy(path: Path = TAXONOMY_PATH) -> dict:
     return _load_yaml(path)["grupos"]
+
+
+def load_objects(path: Path = TAXONOMY_PATH) -> dict:
+    return _load_yaml(path)["objetos_operacionais"]
 
 
 def load_rules(path: Path = RULES_PATH, include_draft: bool = False) -> dict:
@@ -134,9 +140,7 @@ def classify(description, rules: dict, taxonomy: dict) -> dict:
     }
 
 
-def evaluate(history: pd.DataFrame, rules: dict, taxonomy: dict) -> dict:
-    """Acerto da classificacao do motor contra a coluna Classificação do historico."""
-
+def _run_history(history: pd.DataFrame, rules: dict, taxonomy: dict) -> pd.DataFrame:
     rows = []
     for _, record in history.iterrows():
         real = record.get("Classificação")
@@ -146,10 +150,56 @@ def evaluate(history: pd.DataFrame, rules: dict, taxonomy: dict) -> dict:
         rows.append({
             "real": real,
             "motor": found["classificacao"],
+            "regra": found["regra"],
             "ambiguo": found["classificacao"] is None and len(found["candidatas"]) > 1,
         })
+    return pd.DataFrame(rows)
 
-    frame = pd.DataFrame(rows)
+
+def rule_stats(history: pd.DataFrame, rules: dict, taxonomy: dict) -> dict:
+    """Por regra: (acertos de classificacao, respostas) no historico."""
+
+    frame = _run_history(history, rules, taxonomy)
+    answered = frame[frame["regra"].notna()]
+    return {
+        name: (int((group["real"] == group["motor"]).sum()), len(group))
+        for name, group in answered.groupby("regra")
+    }
+
+
+def suggest(description, rules: dict, taxonomy: dict, objects: dict, stats: dict) -> dict:
+    """Sugestao nao vinculante; vazia quando nenhuma regra se aplica sem ambiguidade."""
+
+    found = classify(description, rules, taxonomy)
+    if found["classificacao"] is None:
+        return {"objeto_operacional": None, "classificacao": None,
+                "confianca": None, "motivo": None}
+
+    hits, total = stats.get(found["regra"], (0, 0))
+    return {
+        "objeto_operacional": objects[found["classificacao"]],
+        "classificacao": found["classificacao"],
+        "confianca": round((hits + 1) / (total + 2), 2),  # Laplace: evita 100% com poucos casos
+        "motivo": (f"Regra '{found['regra']}' (termos: {', '.join(found['termos'])}); "
+                   f"acertou {hits}/{total} no histórico."),
+    }
+
+
+def build_suggestions(descriptions: pd.Series, history: pd.DataFrame) -> pd.DataFrame:
+    """Sugestoes para cada trecho de problema, calibradas no historico."""
+
+    rules = load_rules(include_draft=True)
+    taxonomy = load_taxonomy()
+    objects = load_objects()
+    stats = rule_stats(history, rules, taxonomy)
+    rows = [suggest(text, rules, taxonomy, objects, stats) for text in descriptions]
+    return pd.DataFrame(rows, index=descriptions.index)
+
+
+def evaluate(history: pd.DataFrame, rules: dict, taxonomy: dict) -> dict:
+    """Acerto da classificacao do motor contra a coluna Classificação do historico."""
+
+    frame = _run_history(history, rules, taxonomy)
     answered = frame[frame["motor"].notna()]
     return {
         "total": len(frame),

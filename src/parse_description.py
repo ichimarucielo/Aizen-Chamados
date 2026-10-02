@@ -139,3 +139,21 @@ def parse_description(
         )
 
     return result
+
+
+def extract_problem(raw_description) -> str:
+    """Trecho 'Descrição do problema', como a fórmula de Descrição detalhada do template."""
+
+    if pd.isna(raw_description):
+        return ""
+
+    text = str(raw_description)
+    match = re.search(
+        r"Descrição do problema:</strong>(.*?)(?:</p>|$)",
+        text,
+        flags=re.DOTALL,
+    )
+    if match:
+        return normalize_description(match.group(1))
+
+    return parse_description(text)["descricao_problema"]

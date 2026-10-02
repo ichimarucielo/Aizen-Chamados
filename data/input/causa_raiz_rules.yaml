@@ -2,6 +2,8 @@
 # Termos casam no inicio de palavra, sem acento/caixa.
 # required: todos presentes | optional: ao menos um | excluded: nenhum.
 # "aprovado" = usado no pipeline | "revisar" = so avaliacao | "descartar" = precisao baixa.
+# VERSAO 1 (congelada em 2026-10-02): nenhuma regra aprovada pelo N2 ainda.
+# Sugestoes no Excel usam "revisar"; sao apoio, nunca preenchimento automatico.
 version: 3
 
 rules:

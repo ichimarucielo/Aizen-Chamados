@@ -13,7 +13,10 @@ from extract import (
 from parse_description import (
     normalize_description,
     extract_cnpj,
+    extract_problem,
 )
+
+from root_cause_engine import build_suggestions
 
 from lookup import (
     build_razao_social_lookup,
@@ -59,6 +62,10 @@ COMPILADO_COLUMNS = [
     "Dias em Aberto", "Aux_Ranking", "Origem",
 ]
 
+SUGGESTION_COLUMNS = [
+    "Objeto Operacional Sugerido", "Classificação Sugerida", "Score Confiança",
+]
+
 
 def _month_year(value) -> str:
     if pd.isna(value):
@@ -75,6 +82,7 @@ def _month_year(value) -> str:
 def build_n2_dataframe(
     monitoramento_df: pd.DataFrame,
     references_df: pd.DataFrame,
+    history_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Mapeia o relatório do Salesforce para o layout Compilado chamados."""
 
@@ -137,7 +145,15 @@ def build_n2_dataframe(
     result["Aux_Ranking"] = ""
     result["Origem"] = ""
 
-    return result[COMPILADO_COLUMNS]
+    suggestions = build_suggestions(
+        dataframe["Descrição"].map(extract_problem),
+        history_df,
+    )
+    result["Objeto Operacional Sugerido"] = suggestions["objeto_operacional"]
+    result["Classificação Sugerida"] = suggestions["classificacao"]
+    result["Score Confiança"] = suggestions["confianca"]
+
+    return result[COMPILADO_COLUMNS + SUGGESTION_COLUMNS]
 
 
 def main() -> None:
@@ -160,7 +176,11 @@ def main() -> None:
     n2_df = build_n2_dataframe(
         monitoramento_df,
         references_df,
+        load_compilado_sheet(TEMPLATE_PATH),
     )
+
+    suggested = n2_df["Classificação Sugerida"].notna().sum()
+    print(f"Sugestões geradas: {suggested} de {len(n2_df)}")
 
     generated_file, inserted = export_plano_n2(
         dataframe=n2_df,
@@ -169,7 +189,11 @@ def main() -> None:
     )
 
     print(f"Arquivo gerado: {generated_file}")
-    print(f"Novos chamados inseridos: {inserted}")
+    print(f"Novos chamados inseridos: {len(inserted)}")
+    print(
+        "Com sugestão entre os inseridos: "
+        f"{inserted['Classificação Sugerida'].notna().sum()}"
+    )
     print(f"Registros no compilado: {len(load_compilado_sheet(generated_file))}")
 
 if __name__ == "__main__":
