@@ -156,4 +156,4 @@ def extract_problem(raw_description) -> str:
     if match:
         return normalize_description(match.group(1))
 
-    return parse_description(text)["descricao_problema"]
+    return normalize_description(text)

@@ -59,11 +59,6 @@ precedencia:
   sobre:
   - INT_NF_CANCEL_REEMISSAO
   quando: Pede congelar/suspender o contrato; cancelamento de NF é só contexto.
-- preferir: INT_NF_REEMISSAO_PO
-  sobre:
-  - INT_NF_CANCEL_REEMISSAO
-  quando: Quando a substituição da NF envolve PO, a intenção específica de NF com PO prevalece sobre o cancelamento/reemissão
-    genérico.
 intencoes:
 - id: INT_NF_CANCEL_REEMISSAO
   intencao: Cancelar, substituir ou reemitir nota fiscal.
@@ -157,9 +152,6 @@ intencoes:
   - substituir nf + po
   - reemissão de nf + po
   - reemitir nf + po
-  - cancelar substituir nf com po
-  - cancelar e substituir nf com po
-  - substituir nf com po
   aliases_historicos:
   - Reemissão de NF (incluir PO)
   evidencias_historicas: 4
@@ -671,7 +663,6 @@ intencoes:
   - erro no descritivo dos serviços da nf
   - corrigir descrição da nota fiscal
   - conste + po + corrigir
-  - corrigir descritivo dos serviços
   exclusoes:
   - cancelar nf
   - substituir nf

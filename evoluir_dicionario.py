@@ -1,19 +1,19 @@
-"""Evolui o dicionário AIZEN de forma idempotente e segura.
+
+"""Evolui o dicionário AIZEN: adiciona padrões, precedências e exceções comprovados.
 
 Uso:
     python evoluir_dicionario.py [caminho_do_yaml]
 
-Características:
-- não duplica padrões, intenções, precedências ou exceções;
-- cria backup com timestamp antes de alterar o arquivo;
-- preserva a ordem existente do YAML;
-- não altera conteúdo existente;
-- valida estrutura, IDs e as 6 classificações permitidas;
-- grava de forma atômica para evitar corrupção do YAML.
+- Só acrescenta; não remove nem reatribui nada do que já existe.
+- Idempotente.
+- Se um padrão (comparado após a normalização do motor) ficar em mais de uma intenção,
+  ABORTA e lista os conflitos. Nada é gravado.
+- Valida IDs de precedência, classes permitidas e causa padrão -> classe.
+- Faz backup com timestamp antes de salvar.
+- Não cria intenção nova: isso vem da análise do histórico, não deste script.
 """
 
-from __future__ import annotations
-
+import difflib
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -21,17 +21,22 @@ from shutil import copy2
 
 import yaml
 
+sys.path.insert(0, "src")  # roda da raiz do projeto
 
-DEFAULT = Path("data/input/dicionario_aizen_intencoes.yaml")
+from root_cause_engine import normalize_text
+
+
+DEFAULT = Path(
+    "data/input/dicionario_aizen_intencoes.yaml"
+)
 
 
 # ---------------------------------------------------------------------------
-# NOVOS PADRÕES
+# PADRÕES NOVOS
 # ---------------------------------------------------------------------------
 
-PADROES: dict[str, list[str]] = {
+PADROES = {
     "INT_NF_CANCEL_REEMISSAO": [
-        "cancelar nf",
         "cancelar e emitir",
         "emitir uma nova nf",
         "cancelar a nota",
@@ -41,10 +46,12 @@ PADROES: dict[str, list[str]] = {
         "substituição de nf",
         "substituição de todas as nf",
     ],
+
     "INT_NF_DATA_EMISSAO": [
         "emissão no final do mês",
         "emitidas no final do mês",
     ],
+
     "INT_PAG_VENCIMENTO": [
         "aumento no prazo para pagamento",
         "aumento no prazo de pagamento",
@@ -55,19 +62,22 @@ PADROES: dict[str, list[str]] = {
         "prorrogação de boleto",
         "data de vencimento atualizada",
     ],
+
     "INT_PAG_FINANCEIRO": [
         "qual o prazo cadastrado",
         "bloqueio por inadimplência",
         "levantamento de todos os pagamentos",
     ],
+
     "INT_PAG_BOLETO_REENVIO": [
         "preciso do boleto",
-        "ajuste no boleto",
     ],
+
     "INT_PAG_CONTA": [
         "trocar a conta bancária",
         "mudando a forma de pagamento",
     ],
+
     "INT_COB_CONTESTACAO": [
         "cobranças indevidas",
         "mínimo mensal + indevidas",
@@ -87,15 +97,18 @@ PADROES: dict[str, list[str]] = {
         "transações que estamos cobrando",
         "valor está incorreto",
     ],
+
     "INT_COB_DUPLICIDADE": [
         "cobrada em duplicidade",
         "cobradas em duplicidade",
         "cobranças duplicadas",
     ],
+
     "INT_COB_SETUP": [
         "cobrança de chave de loja",
         "chaves de loja + custo",
     ],
+
     "INT_FAT_DUVIDA": [
         "confirmar o valor correto para pagamento",
         "quais mids + cobrança",
@@ -106,52 +119,62 @@ PADROES: dict[str, list[str]] = {
         "duas nf + nf válida",
         "duas nf + corretas",
     ],
+
     "INT_FAT_CORRECAO_PO": [
         "conste + po + corrigir",
         "erro no descritivo dos serviços",
+        "corrigir descritivo dos serviços",
     ],
+
+    "INT_FAT_REENVIO_NF": [
+        "encaminhar as nfs",
+        "encaminhar notas fiscais",
+    ],
+
     "INT_CON_CANCELAMENTO": [
         "solicito o cancelamento do mesmo + contrato",
         "cancelamento do serviço",
-        "cancelar contrato",
-        "cancelamento do contrato",
     ],
+
     "INT_CON_CADASTRO": [
         "lista de recebimento",
         "incluir o email",
         "incluir email",
         "encaminhar as faturas + email",
     ],
+
     "INT_CON_CONDICOES": [
         "renovação contratual",
         "novo termo de adesão",
     ],
+
     "INT_ADM_DOCUMENTOS": [
         "histórico de reajustes",
         "histórico completo dos reajustes",
     ],
+
     "INT_ADM_ACESSO": [
         "não consigo consultar a parte financeira",
+    ],
+
+    "INT_NF_REEMISSAO_PO": [
+        "cancelar substituir nf com po",
+        "cancelar e substituir nf com po",
+        "substituir nf com po",
+        "cancelar/substituir nf com po",
+    ],
+
+    "INT_CON_CONGELAMENTO": [
+        "congelar o contrato",
     ],
 }
 
 
 # ---------------------------------------------------------------------------
-# NOVAS INTENÇÕES
-# ---------------------------------------------------------------------------
-#
-# Não criamos intenção genérica de "Correção de NF":
-# o histórico ainda não sustenta uma intenção ampla o suficiente para isso.
-#
-
-NOVAS_INTENCOES: list[dict] = []
-
-
-# ---------------------------------------------------------------------------
-# PRECEDÊNCIA
+# PRECEDÊNCIAS
 # ---------------------------------------------------------------------------
 
-PRECEDENCIA: list[dict] = [
+PRECEDENCIA = [
     {
         "preferir": "INT_PAG_VENCIMENTO",
         "sobre": [
@@ -161,35 +184,42 @@ PRECEDENCIA: list[dict] = [
         "quando": "O pedido é mudar a data/prazo; reenviar boleto é só o meio.",
     },
     {
-        "preferir": "INT_CON_CANCELAMENTO",
-        "sobre": [
-            "INT_NF_CANCEL_REEMISSAO",
-        ],
-        "quando": "O objeto cancelado é o contrato; NF aparece só como contexto.",
-    },
-    {
         "preferir": "INT_NF_CANCEL_REEMISSAO",
         "sobre": [
             "INT_FAT_REENVIO_NF",
         ],
         "quando": "Pede cancelar e emitir nova NF, não apenas reenviar.",
     },
+    {
+        "preferir": "INT_NF_REEMISSAO_PO",
+        "sobre": [
+            "INT_NF_CANCEL_REEMISSAO",
+        ],
+        "quando": (
+            "Quando a substituição da NF envolve PO, "
+            "a intenção específica de NF com PO prevalece "
+            "sobre o cancelamento/reemissão genérico."
+        ),
+    },
 ]
 
 
 # ---------------------------------------------------------------------------
-# EXCEÇÕES / CONFLITOS HISTÓRICOS
+# EXCEÇÕES
 # ---------------------------------------------------------------------------
 
-EXCECOES: list[dict] = [
+EXCECOES = [
     {
         "id": "valor_nf_contestar_vs_verificar",
-        "causa_ou_rotulo": "Dúvida/divergência de valor da NF ou transações",
+        "causa_ou_rotulo": (
+            "Dúvida/divergência de valor da NF ou transações"
+        ),
         "regra": (
-            "Histórico: contestar/questionar valor, volume ou transações cobradas "
-            "=> Cobrança e Contestação; confirmar qual NF é válida, duas NFs recebidas, "
-            "valor correto para pagar ou MIDs cobrados "
-            "=> Faturamento e Obrigações Fiscais."
+            "Histórico: contestar/questionar valor, volume "
+            "ou transações cobradas => Cobrança e Contestação; "
+            "confirmar qual NF é válida, duas NFs recebidas, "
+            "valor correto para pagar ou MIDs cobrados => "
+            "Faturamento e Obrigações Fiscais."
         ),
     },
     {
@@ -201,7 +231,8 @@ EXCECOES: list[dict] = [
         ],
         "regra": (
             "Histórico dividido entre Faturamento e Contratos. "
-            "O dicionário adota Faturamento porque a ação principal é verificar o faturamento."
+            "Dicionário adota Faturamento: a ação é verificar "
+            "o faturamento."
         ),
     },
     {
@@ -219,8 +250,9 @@ EXCECOES: list[dict] = [
             "27749029",
         ],
         "regra": (
-            "A classificação decorre da ação pedida no corpo do chamado; "
-            "nesses chamados o rótulo histórico não deve ser usado como evidência única."
+            "A classe decorre da ação pedida no corpo do chamado; "
+            "nesses chamados o rótulo histórico não é usado "
+            "como evidência."
         ),
     },
 ]
@@ -230,357 +262,274 @@ EXCECOES: list[dict] = [
 # UTILITÁRIOS
 # ---------------------------------------------------------------------------
 
-def _adicionar_unicos(destino: list, novos: list) -> int:
-    """Adiciona somente itens ainda ausentes e retorna a quantidade adicionada."""
-    adicionados = 0
+def _chave(padrao: str) -> str:
+    """Chave de comparação igual à normalização usada pelo motor."""
 
-    for item in novos:
-        if item not in destino:
-            destino.append(item)
-            adicionados += 1
+    partes = []
 
-    return adicionados
+    for parte in padrao.split("+"):
+        normalizado = normalize_text(parte)
 
+        if normalizado:
+            partes.append(normalizado)
 
-def _backup(caminho: Path) -> Path:
-    """Cria backup versionado antes da alteração."""
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    backup = caminho.with_name(
-        f"{caminho.stem}.yaml.bak_{timestamp}"
-    )
-    copy2(caminho, backup)
-    return backup
-
-
-def _validar_estrutura(d: dict) -> None:
-    """Valida a estrutura mínima esperada do dicionário."""
-    if not isinstance(d, dict):
-        raise ValueError("O YAML raiz precisa ser um objeto/dicionário.")
-
-    classes_permitidas = d.get("classes_permitidas")
-    if not isinstance(classes_permitidas, list):
-        raise ValueError("`classes_permitidas` precisa ser uma lista.")
-
-    intencoes = d.get("intencoes")
-    if not isinstance(intencoes, list):
-        raise ValueError("`intencoes` precisa ser uma lista.")
-
-    ids: set[str] = set()
-
-    for item in intencoes:
-        if not isinstance(item, dict):
-            raise ValueError("Cada intenção precisa ser um objeto.")
-
-        campos_obrigatorios = (
-            "id",
-            "intencao",
-            "causa_padrao",
-            "classificacao",
-            "padroes",
-        )
-
-        faltantes = [
-            campo
-            for campo in campos_obrigatorios
-            if campo not in item
-        ]
-
-        if faltantes:
-            raise ValueError(
-                f"Intenção inválida {item.get('id')!r}; "
-                f"campos ausentes: {faltantes}"
-            )
-
-        iid = item["id"]
-
-        if not isinstance(iid, str) or not iid.strip():
-            raise ValueError("Toda intenção precisa possuir um `id` válido.")
-
-        if iid in ids:
-            raise ValueError(f"ID de intenção duplicado: {iid}")
-
-        ids.add(iid)
-
-        if item["classificacao"] not in classes_permitidas:
-            raise ValueError(
-                f"Classe fora do contrato: {iid} -> "
-                f"{item['classificacao']!r}"
-            )
-
-        if not isinstance(item["padroes"], list):
-            raise ValueError(
-                f"`padroes` precisa ser lista: {iid}"
-            )
-
-        for padrao in item["padroes"]:
-            if not isinstance(padrao, str) or not padrao.strip():
-                raise ValueError(
-                    f"Padrão inválido em {iid}: {padrao!r}"
-                )
-
-
-def _validar_causas(d: dict) -> None:
-    """Garante que uma causa padrão não pertença a duas classes."""
-    causa_classe: dict[str, str] = {}
-
-    for intencao in d["intencoes"]:
-        causa = intencao["causa_padrao"]
-        classificacao = intencao["classificacao"]
-
-        anterior = causa_classe.get(causa)
-
-        if anterior is None:
-            causa_classe[causa] = classificacao
-            continue
-
-        if anterior != classificacao:
-            raise ValueError(
-                "A mesma causa padrão aponta para duas classes: "
-                f"{causa!r} -> {anterior!r} / {classificacao!r}"
-            )
-
-
-def _validar_precedencia(d: dict) -> None:
-    """Garante que precedências apontem para intenções existentes."""
-    intencao_ids = {item["id"] for item in d["intencoes"]}
-
-    for regra in d.get("precedencia", []):
-        preferir = regra.get("preferir")
-        sobre = regra.get("sobre", [])
-
-        if preferir not in intencao_ids:
-            raise ValueError(
-                f"Precedência aponta para intenção inexistente: {preferir}"
-            )
-
-        for alvo in sobre:
-            if alvo not in intencao_ids:
-                raise ValueError(
-                    f"Precedência aponta para intenção inexistente: {alvo}"
-                )
-
-
-def _validar_excecoes(d: dict) -> None:
-    """Garante IDs únicos nas exceções."""
-    excecoes = d.get("conflitos_e_excecoes", [])
-
-    if not isinstance(excecoes, list):
-        raise ValueError(
-            "`conflitos_e_excecoes` precisa ser uma lista."
-        )
-
-    ids: set[str] = set()
-
-    for item in excecoes:
-        if not isinstance(item, dict):
-            raise ValueError(
-                "Cada conflito/exceção precisa ser um objeto."
-            )
-
-        iid = item.get("id")
-
-        if not isinstance(iid, str) or not iid.strip():
-            raise ValueError(
-                "Toda exceção precisa possuir um `id` válido."
-            )
-
-        if iid in ids:
-            raise ValueError(
-                f"ID de exceção duplicado: {iid}"
-            )
-
-        ids.add(iid)
-
-
-def validar(d: dict) -> None:
-    """Executa todas as validações do dicionário."""
-    _validar_estrutura(d)
-    _validar_causas(d)
-    _validar_precedencia(d)
-    _validar_excecoes(d)
+    return " + ".join(sorted(partes))
 
 
 # ---------------------------------------------------------------------------
 # APLICAÇÃO
 # ---------------------------------------------------------------------------
 
-def aplicar(d: dict) -> dict[str, int]:
-    """Aplica a evolução do dicionário de maneira idempotente."""
-    validar(d)
-
+def aplicar(d: dict) -> dict:
     por_id = {
-        item["id"]: item
-        for item in d["intencoes"]
+        intencao["id"]: intencao
+        for intencao in d["intencoes"]
     }
 
-    padroes_adicionados = 0
-
-    for intencao_id, novos_padroes in PADROES.items():
+    # ---------------------------------------------------------------
+    # Padrões
+    # ---------------------------------------------------------------
+    for intencao_id, novos in PADROES.items():
         if intencao_id not in por_id:
             raise ValueError(
-                f"Intenção inexistente para receber padrões: {intencao_id}"
+                f"Intenção inexistente: {intencao_id}"
             )
 
-        atuais = por_id[intencao_id].setdefault("padroes", [])
-
-        padroes_adicionados += _adicionar_unicos(
-            atuais,
-            novos_padroes,
+        atuais = por_id[intencao_id].setdefault(
+            "padroes",
+            [],
         )
 
-    intencoes_adicionadas = 0
+        existentes = {
+            _chave(padrao)
+            for padrao in atuais
+        }
 
-    for nova in NOVAS_INTENCOES:
-        iid = nova["id"]
+        for padrao in novos:
+            chave = _chave(padrao)
 
-        if iid in por_id:
-            continue
+            if not chave:
+                continue
 
-        d["intencoes"].append(nova)
-        por_id[iid] = nova
-        intencoes_adicionadas += 1
+            if chave not in existentes:
+                atuais.append(padrao)
+                existentes.add(chave)
 
-    precedencias = d.setdefault("precedencia", [])
-
-    precedencias_adicionadas = 0
+    # ---------------------------------------------------------------
+    # Precedências
+    # ---------------------------------------------------------------
+    precedencias = d.setdefault(
+        "precedencia",
+        [],
+    )
 
     for regra in PRECEDENCIA:
         existe = any(
-            atual.get("preferir") == regra["preferir"]
-            and atual.get("sobre") == regra["sobre"]
+            atual.get("preferir")
+            == regra["preferir"]
+            and atual.get("sobre", [])
+            == regra["sobre"]
             for atual in precedencias
         )
 
         if not existe:
             precedencias.append(regra)
-            precedencias_adicionadas += 1
 
+    # ---------------------------------------------------------------
+    # Exceções
+    # ---------------------------------------------------------------
     excecoes = d.setdefault(
         "conflitos_e_excecoes",
         [],
     )
 
-    ids_excecoes = {
-        item["id"]
-        for item in excecoes
-        if isinstance(item, dict) and "id" in item
+    ids_existentes = {
+        excecao["id"]
+        for excecao in excecoes
     }
 
-    excecoes_adicionadas = 0
+    excecoes.extend(
+        excecao
+        for excecao in EXCECOES
+        if excecao["id"]
+        not in ids_existentes
+    )
 
-    for excecao in EXCECOES:
-        if excecao["id"] in ids_excecoes:
+    # ---------------------------------------------------------------
+    # Validação das precedências
+    # ---------------------------------------------------------------
+    erros = []
+
+    for regra in precedencias:
+        alvos = [
+            regra["preferir"],
+            *regra.get("sobre", []),
+        ]
+
+        for alvo in alvos:
+            if alvo in por_id:
+                continue
+
+            sugestao = difflib.get_close_matches(
+                alvo,
+                por_id,
+                n=1,
+            )
+
+            mensagem = (
+                f"  {alvo!r} "
+                f"(regra preferir={regra['preferir']!r})"
+            )
+
+            if sugestao:
+                mensagem += (
+                    f" -> você quis dizer "
+                    f"{sugestao[0]!r}?"
+                )
+
+            erros.append(mensagem)
+
+    if erros:
+        raise ValueError(
+            "Precedência aponta para intenção inexistente:\n"
+            + "\n".join(erros)
+        )
+
+    # ---------------------------------------------------------------
+    # Validação de padrões duplicados entre intenções
+    # ---------------------------------------------------------------
+    donos = {}
+
+    for intencao in d["intencoes"]:
+        for padrao in intencao.get(
+            "padroes",
+            [],
+        ):
+            donos.setdefault(
+                _chave(padrao),
+                {},
+            ).setdefault(
+                intencao["id"],
+                padrao,
+            )
+
+    duplicados = {
+        chave: valores
+        for chave, valores in donos.items()
+        if len(valores) > 1
+    }
+
+    if duplicados:
+        linhas = "\n".join(
+            f"  {sorted(valores.values())}: "
+            f"{sorted(valores)}"
+            for valores in duplicados.values()
+        )
+
+        raise ValueError(
+            "Padrão em mais de uma intenção "
+            "(remova a cópia errada no YAML):\n"
+            + linhas
+        )
+
+    # ---------------------------------------------------------------
+    # Validação de classes e causas
+    # ---------------------------------------------------------------
+    permitidas = set(
+        d.get(
+            "classes_permitidas",
+            [],
+        )
+    )
+
+    causa_classe = {}
+
+    for intencao in d["intencoes"]:
+        classificacao = intencao[
+            "classificacao"
+        ]
+
+        if (
+            permitidas
+            and classificacao
+            not in permitidas
+        ):
+            raise ValueError(
+                f"Classe fora do contrato: "
+                f"{intencao['id']}"
+            )
+
+        causa = intencao[
+            "causa_padrao"
+        ]
+
+        if causa not in causa_classe:
+            causa_classe[
+                causa
+            ] = classificacao
             continue
 
-        excecoes.append(excecao)
-        ids_excecoes.add(excecao["id"])
-        excecoes_adicionadas += 1
+        if (
+            causa_classe[causa]
+            != classificacao
+        ):
+            raise ValueError(
+                f"Causa com duas classes: "
+                f"{causa}"
+            )
 
-    validar(d)
-
-    return {
-        "intencoes_adicionadas": intencoes_adicionadas,
-        "padroes_adicionados": padroes_adicionados,
-        "precedencias_adicionadas": precedencias_adicionadas,
-        "excecoes_adicionadas": excecoes_adicionadas,
-    }
+    return d
 
 
 # ---------------------------------------------------------------------------
-# ESCRITA SEGURA
+# CLI
 # ---------------------------------------------------------------------------
 
-def salvar_atomicamente(caminho: Path, d: dict) -> None:
-    """Escreve o YAML em arquivo temporário e substitui o original."""
-    temporario = caminho.with_name(
-        f"{caminho.name}.tmp"
-    )
-
-    conteudo = yaml.safe_dump(
-        d,
-        allow_unicode=True,
-        sort_keys=False,
-        width=120,
-        default_flow_style=False,
-    )
-
-    temporario.write_text(
-        conteudo,
-        encoding="utf-8",
-    )
-
-    temporario.replace(caminho)
-
-
-# ---------------------------------------------------------------------------
-# MAIN
-# ---------------------------------------------------------------------------
-
-def main() -> None:
+if __name__ == "__main__":
     caminho = (
         Path(sys.argv[1])
         if len(sys.argv) > 1
         else DEFAULT
     )
 
-    if not caminho.exists():
-        raise FileNotFoundError(
-            f"Arquivo YAML não encontrado: {caminho}"
+    dicionario = yaml.safe_load(
+        caminho.read_text(
+            encoding="utf-8"
         )
-
-    if caminho.suffix.lower() not in {".yaml", ".yml"}:
-        raise ValueError(
-            f"Arquivo informado não parece ser YAML: {caminho}"
-        )
-
-    try:
-        dicionario = yaml.safe_load(
-            caminho.read_text(encoding="utf-8")
-        )
-    except yaml.YAMLError as exc:
-        raise ValueError(
-            f"YAML inválido antes da alteração: {exc}"
-        ) from exc
-
-    validar(dicionario)
-
-    backup = _backup(caminho)
-
-    try:
-        resultado = aplicar(dicionario)
-        salvar_atomicamente(caminho, dicionario)
-
-        # Reabre o arquivo final para garantir que a gravação realmente
-        # produziu um YAML válido e estruturalmente consistente.
-        validado = yaml.safe_load(
-            caminho.read_text(encoding="utf-8")
-        )
-
-        validar(validado)
-
-    except Exception:
-        # O original já possui backup antes de qualquer escrita.
-        raise
-
-    print("OK: dicionário atualizado com sucesso.")
-    print(f"Arquivo: {caminho}")
-    print(f"Backup: {backup}")
-    print(f"Intenções: {len(validado['intencoes'])}")
-    print(f"Padrões adicionados: {resultado['padroes_adicionados']}")
-    print(
-        f"Intenções adicionadas: "
-        f"{resultado['intencoes_adicionadas']}"
     )
-    print(
-        f"Precedências adicionadas: "
-        f"{resultado['precedencias_adicionadas']}"
-    )
-    print(
-        f"Exceções adicionadas: "
-        f"{resultado['excecoes_adicionadas']}"
-    )
-    print("Validação final: OK")
 
+    dicionario = aplicar(
+        dicionario
+    )
 
-if __name__ == "__main__":
-    main()
+    backup = caminho.with_name(
+        f"{caminho.name}."
+        f"{datetime.now():%Y%m%d_%H%M%S}.bak"
+    )
+
+    copy2(
+        caminho,
+        backup,
+    )
+
+    caminho.write_text(
+        yaml.safe_dump(
+            dicionario,
+            allow_unicode=True,
+            sort_keys=False,
+            width=120,
+        ),
+        encoding="utf-8",
+    )
+
+    print(
+        f"OK: "
+        f"{len(dicionario['intencoes'])} intenções, "
+        f"{len(dicionario['precedencia'])} precedências "
+        f"-> {caminho}"
+    )
+
+    print(
+        f"Backup: {backup}"
+    )
+

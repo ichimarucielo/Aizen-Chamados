@@ -27,6 +27,11 @@ from business_rules import (
     apply_dias_aberto,
 )
 
+from parse_description import (
+    extract_cnpj,
+    extract_problem,
+)
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 TEMPLATE_PATH = (
@@ -94,9 +99,7 @@ def build_n2_dataframe(
     dataframe = monitoramento_df.copy()
     description = dataframe["Descrição"].fillna("").astype(str)
     dataframe["CNPJ"] = extract_cnpj(description)
-    dataframe["DESCRICAO_NORMALIZADA"] = description.apply(
-        normalize_description
-    )
+    dataframe["DESCRICAO_NORMALIZADA"] = description.apply(extract_problem)
 
     razao_social_lookup = build_razao_social_lookup(references_df)
     dataframe["RAZAO_SOCIAL"] = dataframe["CNPJ"].apply(
