@@ -45,6 +45,7 @@ PADROES = {
         "nf + ser canceladas",
         "substituição de nf",
         "substituição de todas as nf",
+        "substituição nf"
     ],
 
     "INT_NF_DATA_EMISSAO": [

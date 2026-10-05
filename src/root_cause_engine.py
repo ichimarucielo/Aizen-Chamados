@@ -1,5 +1,5 @@
 
-"""Descrição detalhada -> intenção -> causa padrão -> classificação oficial."""
+"""Texto -> normalização -> conceitos/padrões -> intenção -> causa padrão -> classificação oficial."""
 
 from pathlib import Path
 import re
@@ -55,7 +55,67 @@ def normalize_text(text) -> str:
         if not unicodedata.combining(char)
     )
 
-    # Unifica variações de nota fiscal.
+    # ------------------------------------------------------------------
+    # 1. Normaliza números associados a conceitos relevantes.
+    #    Faz isso ANTES de transformar "notas fiscais" em "nf".
+    # ------------------------------------------------------------------
+
+    # 2 notas fiscais -> duas notas fiscais
+    value = re.sub(
+        r"\b2\s+notas?\s+fiscais?\b",
+        "duas notas fiscais",
+        value,
+    )
+
+    # 3 notas fiscais -> tres notas fiscais
+    value = re.sub(
+        r"\b3\s+notas?\s+fiscais?\b",
+        "tres notas fiscais",
+        value,
+    )
+
+    value = re.sub(
+    r"\b3\s+notas?\b",
+    "tres notas",
+    value,
+    )
+
+    # 4+ notas fiscais
+    for number, word in {
+        "4": "quatro",
+        "5": "cinco",
+        "6": "seis",
+        "7": "sete",
+        "8": "oito",
+        "9": "nove",
+    }.items():
+        value = re.sub(
+            rf"\b{number}\s+notas?\s+fiscais?\b",
+            f"{word} notas fiscais",
+            value,
+        )
+
+    # Números associados a boletos.
+    for number, word in {
+        "2": "dois",
+        "3": "tres",
+        "4": "quatro",
+        "5": "cinco",
+        "6": "seis",
+        "7": "sete",
+        "8": "oito",
+        "9": "nove",
+    }.items():
+        value = re.sub(
+            rf"\b{number}\b(?=\s+boletos?)",
+            word,
+            value,
+        )
+
+    # ------------------------------------------------------------------
+    # 2. Unifica variações de nota fiscal.
+    # ------------------------------------------------------------------
+
     value = re.sub(
         r"\bnotas?\s+fisc(?:al|ais)\b"
         r"|\bnotas?\b"
@@ -64,6 +124,20 @@ def normalize_text(text) -> str:
         " nf ",
         value,
     )
+
+    # ------------------------------------------------------------------
+    # 3. Normaliza e-mail.
+    # ------------------------------------------------------------------
+
+    value = re.sub(
+        r"[\w.-]+@[\w.-]+\.\w+",
+        " email ",
+        value,
+    )
+
+    # ------------------------------------------------------------------
+    # 4. Limpeza geral.
+    # ------------------------------------------------------------------
 
     value = re.sub(
         r"[^a-z0-9]+",
@@ -78,7 +152,6 @@ def normalize_text(text) -> str:
     )
 
     return value
-
 
 # ---------------------------------------------------------------------------
 # CARGA DE CONFIGURAÇÃO
@@ -226,6 +299,165 @@ def validate_dictionary(
                     f"intenção inexistente: {intent_id}"
                 )
 
+    # A camada conceitual é opcional nesta primeira etapa.
+    # Quando presente, validamos apenas a estrutura mínima, sem
+    # impor uma ontologia rígida ao projeto.
+    concepts = dictionary.get("conceitos", {})
+    if concepts is not None and not isinstance(concepts, dict):
+        problems.append(
+            "A seção 'conceitos' deve ser um mapa conceito -> padrões."
+        )
+
+    if isinstance(concepts, dict):
+        for concept_id, definition in concepts.items():
+            if not str(concept_id).strip():
+                problems.append(
+                    "Conceito com ID vazio."
+                )
+
+            if not _concept_patterns(
+                concepts,
+                concept_id,
+            ):
+                problems.append(
+                    f"Conceito sem padrões: {concept_id}"
+                )
+
+    fallback_classes = dictionary.get(
+        "classificacoes_fallback",
+        [],
+    )
+
+    if fallback_classes is not None and not isinstance(
+        fallback_classes,
+        list,
+    ):
+        problems.append(
+            "A seção 'classificacoes_fallback' deve ser uma lista."
+        )
+    else:
+        fallback_ids = set()
+        fallback_causes = set()
+
+        for fallback in fallback_classes:
+            if not isinstance(fallback, dict):
+                problems.append(
+                    "Fallback de classificação inválido: esperado objeto YAML."
+                )
+                continue
+
+            fallback_id = fallback.get("id")
+            classification = fallback.get("classificacao")
+            cause = fallback.get("causa_padrao")
+            requirements = fallback.get("conceitos", [])
+
+            if not fallback_id:
+                problems.append("Fallback de classificação sem ID.")
+            elif fallback_id in fallback_ids:
+                problems.append(
+                    f"ID de fallback duplicado: {fallback_id}"
+                )
+            else:
+                fallback_ids.add(fallback_id)
+
+            if classification not in allowed:
+                problems.append(
+                    f"Fallback fora do contrato: {fallback_id or '<sem id>'}"
+                )
+
+            if not cause:
+                problems.append(
+                    f"Fallback sem causa padrão: {fallback_id or '<sem id>'}"
+                )
+            elif cause in fallback_causes:
+                problems.append(
+                    f"Causa padrão de fallback duplicada: {cause}"
+                )
+            else:
+                fallback_causes.add(cause)
+
+            if not requirements:
+                problems.append(
+                    f"Fallback sem conceitos: {fallback_id or '<sem id>'}"
+                )
+
+            for concept_id in requirements:
+                if concept_id not in concepts:
+                    problems.append(
+                        "Fallback aponta para conceito inexistente: "
+                        f"{concept_id}"
+                    )
+
+    conceptual_rules = dictionary.get(
+        "regras_conceituais",
+        [],
+    )
+
+    if conceptual_rules is not None and not isinstance(
+        conceptual_rules,
+        list,
+    ):
+        problems.append(
+            "A seção 'regras_conceituais' deve ser uma lista."
+        )
+    else:
+        rule_ids = set()
+        allowed_scopes = {"local", "texto"}
+
+        for rule in conceptual_rules:
+            if not isinstance(rule, dict):
+                problems.append(
+                    "Regra conceitual inválida: esperado objeto YAML."
+                )
+                continue
+
+            rule_id = rule.get("id")
+            intent_id = rule.get("intencao")
+            requirements = rule.get("requisitos", [])
+            scope = rule.get("escopo", "local")
+
+            if not rule_id:
+                problems.append(
+                    "Regra conceitual sem ID."
+                )
+            elif rule_id in rule_ids:
+                problems.append(
+                    f"ID de regra conceitual duplicado: {rule_id}"
+                )
+            else:
+                rule_ids.add(rule_id)
+
+            if scope not in allowed_scopes:
+                problems.append(
+                    f"Escopo conceitual inválido em {rule_id or '<sem id>'}: {scope}"
+                )
+
+            if not intent_id:
+                problems.append(
+                    f"Regra conceitual sem intenção: {rule_id or '<sem id>'}"
+                )
+            elif intent_id not in ids:
+                problems.append(
+                    "Regra conceitual aponta para intenção "
+                    f"inexistente: {intent_id}"
+                )
+
+            if not requirements:
+                problems.append(
+                    f"Regra conceitual sem requisitos: "
+                    f"{rule_id or '<sem id>'}"
+                )
+
+            for requirement in requirements:
+                for concept_id in _normalize_concept_requirement(
+                    requirement
+                ):
+                    if concept_id not in concepts:
+                        problems.append(
+                            "Regra conceitual aponta para conceito "
+                            f"inexistente: {concept_id}"
+                        )
+
     return sorted(set(problems))
 
 
@@ -264,6 +496,932 @@ def _matches_pattern(
 
 
 # ---------------------------------------------------------------------------
+# CONCEITOS
+# ---------------------------------------------------------------------------
+
+def _concept_patterns(concepts: dict, concept_id: str) -> list[str]:
+    """Retorna os padrões de texto associados a um conceito."""
+    definition = concepts.get(concept_id, [])
+
+    if isinstance(definition, dict):
+        patterns = (
+            definition.get("padroes")
+            or definition.get("patterns")
+            or definition.get("termos")
+            or []
+        )
+    else:
+        patterns = definition
+
+    if isinstance(patterns, str):
+        patterns = [patterns]
+
+    return [
+        str(pattern).strip()
+        for pattern in patterns
+        if str(pattern).strip()
+    ]
+
+
+def _normalized_clauses(text: str) -> list[str]:
+    """Divide o texto em blocos operacionais sem destruir a lógica de normalização."""
+    raw = "" if pd.isna(text) else str(text)
+    chunks = re.split(r"[;\n\r.!?:]+", raw)
+    clauses = [normalize_text(chunk) for chunk in chunks]
+    return [clause for clause in clauses if clause]
+
+
+def _concept_occurrences(
+    text: str,
+    dictionary: dict,
+) -> dict[str, list[dict]]:
+    """Extrai ocorrências de conceitos com posição local e global."""
+    concepts = dictionary.get("conceitos", {})
+    occurrences: dict[str, list[dict]] = {}
+    global_offset = 0
+
+    for clause_index, clause in enumerate(_normalized_clauses(text)):
+        tokens = clause.split()
+
+        for concept_id in concepts:
+            for pattern in _concept_patterns(concepts, concept_id):
+                pattern_tokens = normalize_text(pattern).split()
+                if not pattern_tokens:
+                    continue
+
+                width = len(pattern_tokens)
+                for start in range(max(0, len(tokens) - width + 1)):
+                    if tokens[start:start + width] != pattern_tokens:
+                        continue
+
+                    occurrences.setdefault(concept_id, []).append(
+                        {
+                            "pattern": pattern,
+                            "clause": clause_index,
+                            "start": start,
+                            "end": start + width - 1,
+                            "global_start": global_offset + start,
+                            "global_end": global_offset + start + width - 1,
+                        }
+                    )
+
+        global_offset += len(tokens)
+
+    return occurrences
+
+
+def _concept_requirement_occurrences(
+    requirement,
+    occurrences: dict[str, list[dict]],
+) -> list[dict]:
+    """Obtém ocorrências de qualquer alternativa de um requisito."""
+    items = []
+    for concept_id in _normalize_concept_requirement(requirement):
+        for occurrence in occurrences.get(concept_id, []):
+            items.append(
+                {
+                    **occurrence,
+                    "concept_id": concept_id,
+                }
+            )
+    return items
+
+
+def _coordinated_distinct_targets(
+    text: str,
+    dictionary: dict,
+    max_distance: int = 8,
+) -> bool:
+    """Detecta uma ação explícita aplicada a mais de um grupo de classificação."""
+    occurrences = _active_concept_occurrences(text, dictionary)
+    if not occurrences:
+        return False
+
+    fallback_candidates = _fallback_candidates_from_concepts(
+        occurrences,
+        dictionary,
+    )
+    if not fallback_candidates:
+        return False
+
+    class_by_object = {}
+    for candidate in fallback_candidates:
+        classification = candidate["definition"].get("classificacao")
+        for evidence in candidate["evidence"]:
+            class_by_object[
+                (
+                    evidence["clause"],
+                    evidence["start"],
+                )
+            ] = classification
+
+    # Reconstroi os tokens por cláusula para validar a conjunção entre objetos.
+    clauses = _normalized_clauses(text)
+
+    action_occurrences = []
+    for concept_id, concept_occurrences in occurrences.items():
+        if concept_id.startswith("ACAO_"):
+            action_occurrences.extend(concept_occurrences)
+
+    if not action_occurrences:
+        return False
+
+    all_objects = []
+    for concept_id, concept_occurrences in occurrences.items():
+        if not concept_id.startswith("OBJ_"):
+            continue
+        for occurrence in concept_occurrences:
+            classification = class_by_object.get(
+                (
+                    occurrence["clause"],
+                    occurrence["start"],
+                )
+            )
+            if classification:
+                all_objects.append(
+                    {
+                        **occurrence,
+                        "classification": classification,
+                    }
+                )
+
+    for action in action_occurrences:
+        same_clause = [
+            obj
+            for obj in all_objects
+            if obj["clause"] == action["clause"]
+            and abs(obj["start"] - action["start"]) <= max_distance
+        ]
+
+        if len(same_clause) < 2:
+            continue
+
+        nearest = min(
+            same_clause,
+            key=lambda obj: abs(
+                obj["start"] - action["start"]
+            ),
+        )
+
+        related = [nearest]
+        clause = clauses[action["clause"]]
+        for obj in same_clause:
+            if obj is nearest:
+                continue
+
+            left = min(nearest["start"], obj["start"])
+            right = max(nearest["start"], obj["start"])
+            between = clause.split()[left + 1:right]
+
+            if any(token in {"e", "ou"} for token in between):
+                related.append(obj)
+
+        if len({obj["classification"] for obj in related}) > 1:
+            return True
+
+    return False
+
+
+def _rule_matches_by_local_scope(
+    rule: dict,
+    occurrences: dict[str, list[dict]],
+    max_action_object_distance: int = 8,
+    max_text_distance: int = 80,
+    text: str = "",
+) -> bool:
+    """
+    Avalia uma regra conceitual por escopo determinístico.
+
+    ``local`` (padrão): ação, objeto e contextos ficam no mesmo bloco.
+    ``texto``: conceitos podem aparecer em blocos diferentes, mas ação e objeto
+    ainda precisam estar próximos quando ambos existem.
+
+    Isso permite regras reutilizáveis sem depender de frases completas, mantendo
+    a decisão conservadora para evitar associações acidentais.
+    """
+    requirements = rule.get("requisitos", [])
+    if not requirements:
+        return False
+
+    groups = [
+        _concept_requirement_occurrences(requirement, occurrences)
+        for requirement in requirements
+    ]
+
+    if any(not group for group in groups):
+        return False
+
+    scope = rule.get("escopo", "local")
+    action_indexes = [
+        index
+        for index, requirement in enumerate(requirements)
+        if any(
+            concept_id.startswith("ACAO_")
+            for concept_id in _normalize_concept_requirement(requirement)
+        )
+    ]
+    object_indexes = [
+        index
+        for index, requirement in enumerate(requirements)
+        if any(
+            concept_id.startswith("OBJ_")
+            for concept_id in _normalize_concept_requirement(requirement)
+        )
+    ]
+
+    def same_scope(a: dict, b: dict) -> bool:
+        if scope == "texto":
+            return abs(a["global_start"] - b["global_start"]) <= max_text_distance
+        return a["clause"] == b["clause"]
+
+    # Regra composta apenas de objeto/contexto.
+    if not action_indexes or not object_indexes:
+        anchor_group = groups[0]
+
+        for anchor in anchor_group:
+            ok = True
+            for group in groups[1:]:
+                if not any(same_scope(anchor, occurrence) for occurrence in group):
+                    ok = False
+                    break
+            if ok:
+                return True
+
+        return False
+
+    action_occurrences = []
+    for action_index in action_indexes:
+        action_occurrences.extend(groups[action_index])
+
+    required_object_ids = {
+        concept_id
+        for index in object_indexes
+        for concept_id in _normalize_concept_requirement(requirements[index])
+    }
+
+    all_object_occurrences = []
+    for concept_id, concept_occurrences in occurrences.items():
+        if not concept_id.startswith("OBJ_"):
+            continue
+        all_object_occurrences.extend(
+            {**occurrence, "concept_id": concept_id}
+            for occurrence in concept_occurrences
+        )
+
+    for action in action_occurrences:
+        candidates = []
+
+        for obj in all_object_occurrences:
+            if scope == "local":
+                if obj["clause"] != action["clause"]:
+                    continue
+                distance = abs(action["start"] - obj["start"])
+                if distance > max_action_object_distance:
+                    continue
+            else:
+                distance = abs(action["global_start"] - obj["global_start"])
+                if distance > max_text_distance:
+                    continue
+
+            candidates.append((distance, obj))
+
+        if not candidates:
+            continue
+
+        nearest_distance = min(distance for distance, _ in candidates)
+        nearest_objects = [
+            obj
+            for distance, obj in candidates
+            if distance == nearest_distance
+        ]
+
+        associated_objects = list(nearest_objects)
+
+        clause_tokens = _normalized_clauses(text) if text else []
+        current_clause = (
+            clause_tokens[action["clause"]]
+            if action["clause"] < len(clause_tokens)
+            else ""
+        )
+        current_tokens = current_clause.split()
+
+        # Um único verbo pode atuar sobre dois objetos coordenados:
+        # "cancelar NF e boleto". Não usamos apenas distância: entre o alvo
+        # mais próximo e o segundo alvo precisa aparecer uma conjunção.
+        for _, obj in candidates:
+            if obj in associated_objects:
+                continue
+
+            if obj["start"] <= action["start"]:
+                continue
+
+            left = nearest_objects[0]["start"]
+            right = obj["start"]
+            if right - left > max_action_object_distance:
+                continue
+
+            tokens_between = current_tokens[left + 1:right]
+            if any(token in {"e", "ou"} for token in tokens_between):
+                associated_objects.append(obj)
+
+        if not any(
+            obj["concept_id"] in required_object_ids
+            for obj in associated_objects
+        ):
+            continue
+
+        # Contextos/requisitos adicionais devem acompanhar a relação ação +
+        # objeto no mesmo escopo declarado pela regra.
+        for index, group in enumerate(groups):
+            if index in {action_indexes[0], object_indexes[0]}:
+                continue
+
+            if not any(same_scope(action, occurrence) for occurrence in group):
+                break
+        else:
+            return True
+
+    return False
+
+
+def _concept_rule_is_contextual(
+    text: str,
+    rule: dict,
+    occurrences: dict[str, list[dict]],
+) -> bool:
+    """Identifica regras presentes explicitamente como contexto."""
+    markers = ("so contexto", "somente contexto", "apenas contexto")
+    clauses = _normalized_clauses(text)
+    if not clauses:
+        return False
+
+    requirements = rule.get("requisitos", [])
+    groups = [
+        _concept_requirement_occurrences(requirement, occurrences)
+        for requirement in requirements
+    ]
+    if any(not group for group in groups):
+        return False
+
+    for clause_index, clause in enumerate(clauses):
+        marker_positions = [clause.find(marker) for marker in markers if clause.find(marker) >= 0]
+        if not marker_positions:
+            continue
+
+        marker_position = min(marker_positions)
+        prefix = clause[:marker_position]
+
+        # A regra só é contextual quando seus conceitos operacionais
+        # aparecem no próprio bloco imediatamente anterior ao marcador.
+        all_in_clause = True
+        for group in groups:
+            if not any(occurrence["clause"] == clause_index for occurrence in group):
+                all_in_clause = False
+                break
+
+        if not all_in_clause:
+            continue
+
+        for group in groups:
+            if not any(
+                occurrence["clause"] == clause_index
+                and normalize_text(occurrence["pattern"]) in prefix
+                for occurrence in group
+            ):
+                all_in_clause = False
+                break
+
+        if all_in_clause:
+            return True
+
+    return False
+
+
+def _pattern_is_contextual(
+    text: str,
+    pattern: str,
+) -> bool:
+    """Verifica se um padrão textual está no bloco declarado como contexto."""
+    markers = ("so contexto", "somente contexto", "apenas contexto")
+    raw = "" if pd.isna(text) else str(text)
+
+    for chunk in re.split(r"[;\n\r.!?:]+", raw):
+        clause = normalize_text(chunk)
+        if not clause:
+            continue
+
+        positions = [clause.find(marker) for marker in markers if clause.find(marker) >= 0]
+        if not positions:
+            continue
+
+        marker_position = min(positions)
+        prefix = clause[:marker_position]
+        normalized_pattern = normalize_text(pattern.replace("+", " "))
+
+        if normalized_pattern and normalized_pattern in prefix:
+            return True
+
+    return False
+
+
+def extract_concepts(
+    text: str,
+    dictionary: dict,
+) -> dict[str, list[str]]:
+    """
+    Extrai conceitos semânticos do texto de forma determinística.
+
+    O YAML pode declarar:
+
+        conceitos:
+          ACAO_CANCELAR:
+            - cancelar
+            - cancelamento
+          OBJ_NF:
+            - nota fiscal
+            - nf
+
+    O retorno é:
+
+        {
+            "ACAO_CANCELAR": ["cancelar"],
+            "OBJ_NF": ["nf"],
+        }
+
+    Conceitos isolados não geram uma intenção específica. A classificação genérica
+    pode ser usada quando o dicionário declarar um fallback de grupo; intenções
+    específicas continuam dependendo de regras conceituais ou padrões legados.
+    """
+    normalized = normalize_text(text)
+
+    if not normalized:
+        return {}
+
+    concepts = dictionary.get("conceitos", {})
+    extracted: dict[str, list[str]] = {}
+
+    for concept_id in concepts:
+        found = [
+            pattern
+            for pattern in _concept_patterns(concepts, concept_id)
+            if _contains_phrase(normalized, pattern)
+        ]
+
+        if found:
+            extracted[concept_id] = found
+
+    return extracted
+
+
+def _normalize_concept_requirement(requirement) -> list[str]:
+    """
+    Normaliza um requisito de regra.
+
+    Pode ser:
+        - ACAO_CANCELAR
+        - [ACAO_CANCELAR, ACAO_SUBSTITUIR]
+
+    No segundo caso, qualquer um dos conceitos da lista satisfaz
+    o requisito.
+    """
+    if isinstance(requirement, str):
+        return [requirement.strip()] if requirement.strip() else []
+
+    if isinstance(requirement, (list, tuple, set)):
+        return [
+            str(item).strip()
+            for item in requirement
+            if str(item).strip()
+        ]
+
+    return []
+
+
+def _concept_rule_matches(
+    rule: dict,
+    concepts: dict[str, list[str]],
+) -> bool:
+    """Avalia uma regra conceitual contra os conceitos extraídos."""
+    requirements = rule.get("requisitos", [])
+
+    if not requirements:
+        return False
+
+    for requirement in requirements:
+        alternatives = _normalize_concept_requirement(requirement)
+
+        if not alternatives:
+            return False
+
+        if not any(
+            concept_id in concepts
+            for concept_id in alternatives
+        ):
+            return False
+
+    # Exclusões podem ser IDs de conceito ou padrões de texto previamente
+    # extraídos. Como a função recebe conceitos, a forma mais segura aqui
+    # é tratar exclusões como IDs de conceito.
+    exclusions = rule.get("exclusoes", [])
+
+    for exclusion in exclusions:
+        if isinstance(exclusion, str) and exclusion.strip() in concepts:
+            return False
+
+    return True
+
+
+def _concept_rule_matches_for_text(
+    text: str,
+    dictionary: dict,
+) -> tuple[list[dict], dict[str, list[str]], dict[str, str]]:
+    """
+    Retorna intenções encontradas pelas regras conceituais.
+
+    Retorno:
+        matches
+        matched_patterns
+        matched_rules
+
+    ``matched_patterns`` usa uma representação legível dos conceitos
+    encontrados, permitindo que a camada existente de precedência/contexto
+    continue funcionando.
+    """
+    concepts = extract_concepts(text, dictionary)
+    occurrences = _concept_occurrences(text, dictionary)
+
+    if not concepts:
+        return [], {}, {}
+
+    intents_by_id = {
+        intent["id"]: intent
+        for intent in dictionary.get("intencoes", [])
+    }
+
+    matches = []
+    matched_patterns: dict[str, list[str]] = {}
+    matched_rules: dict[str, str] = {}
+
+    for rule in dictionary.get("regras_conceituais", []):
+        if not isinstance(rule, dict):
+            continue
+
+        intent_id = rule.get("intencao")
+        if not intent_id or intent_id not in intents_by_id:
+            continue
+
+        if not _rule_matches_by_local_scope(
+            rule,
+            occurrences,
+            text=text,
+        ):
+            continue
+
+        if _concept_rule_is_contextual(text, rule, occurrences):
+            continue
+
+        # A relação entre ação e objeto já foi validada pela camada de
+        # escopo local acima. Aqui só preservamos as exclusões declaradas
+        # pela regra.
+        if any(
+            isinstance(exclusion, str)
+            and exclusion.strip() in concepts
+            for exclusion in rule.get("exclusoes", [])
+        ):
+            continue
+
+        intent = intents_by_id[intent_id]
+
+        if intent_id not in {
+            item["id"]
+            for item in matches
+        }:
+            matches.append(intent)
+
+        requirements = rule.get("requisitos", [])
+        concept_labels = []
+
+        for requirement in requirements:
+            alternatives = _normalize_concept_requirement(requirement)
+            selected = next(
+                (
+                    concept_id
+                    for concept_id in alternatives
+                    if concept_id in concepts
+                ),
+                None,
+            )
+
+            if selected:
+                concept_labels.append(selected)
+
+        synthetic_pattern = " + ".join(concept_labels)
+
+        if synthetic_pattern:
+            matched_patterns.setdefault(intent_id, []).append(
+                synthetic_pattern
+            )
+
+        matched_rules.setdefault(
+            intent_id,
+            str(rule.get("id") or intent_id),
+        )
+
+    return matches, matched_patterns, matched_rules
+
+
+# ---------------------------------------------------------------------------
+# FALLBACK DE CLASSIFICAÇÃO
+# ---------------------------------------------------------------------------
+
+def _fallback_definitions(
+    dictionary: dict,
+) -> list[dict]:
+    """Retorna os classificadores genéricos declarados no YAML."""
+    return [
+        definition
+        for definition in dictionary.get(
+            "classificacoes_fallback",
+            [],
+        )
+        if isinstance(definition, dict)
+    ]
+
+
+def _active_concept_occurrences(
+    text: str,
+    dictionary: dict,
+) -> dict[str, list[dict]]:
+    """Retorna apenas conceitos que não aparecem explicitamente como contexto."""
+    occurrences = _concept_occurrences(text, dictionary)
+    clauses = _normalized_clauses(text)
+    markers = ("so contexto", "somente contexto", "apenas contexto")
+
+    active: dict[str, list[dict]] = {}
+
+    for concept_id, concept_occurrences in occurrences.items():
+        for occurrence in concept_occurrences:
+            clause_index = occurrence["clause"]
+            if clause_index >= len(clauses):
+                continue
+
+            clause = clauses[clause_index]
+            marker_tokens = []
+
+            for marker in markers:
+                marker_index = clause.find(marker)
+                if marker_index >= 0:
+                    marker_tokens.append(
+                        len(clause[:marker_index].split())
+                    )
+
+            # Se a ocorrência estiver antes de um marcador de contexto no
+            # próprio bloco, ela é considerada contextual.
+            if marker_tokens and occurrence["start"] < min(marker_tokens):
+                continue
+
+            active.setdefault(
+                concept_id,
+                [],
+            ).append(occurrence)
+
+    return active
+
+
+def _fallback_candidates_from_concepts(
+    active_occurrences: dict[str, list[dict]],
+    dictionary: dict,
+) -> list[dict]:
+    """Encontra classes genéricas sustentadas por conceitos ativos."""
+    candidates = []
+
+    for definition in _fallback_definitions(dictionary):
+        concept_ids = {
+            str(concept_id).strip()
+            for concept_id in definition.get("conceitos", [])
+            if str(concept_id).strip()
+        }
+
+        evidence = []
+        for concept_id in concept_ids:
+            for occurrence in active_occurrences.get(concept_id, []):
+                evidence.append(
+                    {
+                        **occurrence,
+                        "concept_id": concept_id,
+                    }
+                )
+
+        if not evidence:
+            continue
+
+        candidates.append(
+            {
+                "definition": definition,
+                "evidence": evidence,
+            }
+        )
+
+    return candidates
+
+
+def _nearest_fallback_class_for_action(
+    action_occurrence: dict,
+    candidates: list[dict],
+    max_distance: int = 8,
+) -> str | None:
+    """Associa uma ação ao objeto genérico mais próximo na mesma cláusula."""
+    nearest = []
+
+    for candidate in candidates:
+        definition = candidate["definition"]
+        classification = definition.get("classificacao")
+
+        for evidence in candidate["evidence"]:
+            if evidence["clause"] != action_occurrence["clause"]:
+                continue
+
+            distance = abs(
+                evidence["start"]
+                - action_occurrence["start"]
+            )
+
+            if distance <= max_distance:
+                nearest.append(
+                    (
+                        distance,
+                        classification,
+                    )
+                )
+
+    if not nearest:
+        return None
+
+    nearest_distance = min(
+        distance
+        for distance, _ in nearest
+    )
+
+    classifications = {
+        classification
+        for distance, classification in nearest
+        if distance == nearest_distance
+    }
+
+    return (
+        next(iter(classifications))
+        if len(classifications) == 1
+        else None
+    )
+
+
+def _generic_classification_fallback(
+    text: str,
+    dictionary: dict,
+) -> dict | None:
+    """
+    Resolve uma classificação oficial sem exigir uma causa específica.
+
+    Regras: 
+        1. Se os conceitos apontarem para uma única classificação, usa essa
+           classificação mesmo sem verbo explícito. Isso permite casos como
+           "boleto", "NF" ou "cobrança".
+        2. Se houver mais de uma classificação, tenta associar uma ação ao
+           objeto/grupo mais próximo na mesma cláusula.
+        3. Se houver mais de uma classificação e nenhuma ação conseguir
+           resolver o alvo, não inventa uma escolha.
+        4. Texto contendo somente vários objetos contextuais, sem ação,
+           permanece sem correspondência em vez de virar ambíguo.
+    """
+    active_occurrences = _active_concept_occurrences(
+        text,
+        dictionary,
+    )
+
+    if not active_occurrences:
+        return None
+
+    candidates = _fallback_candidates_from_concepts(
+        active_occurrences,
+        dictionary,
+    )
+
+    if not candidates:
+        return None
+
+    by_class: dict[str, list[dict]] = {}
+    for candidate in candidates:
+        classification = candidate["definition"].get("classificacao")
+        if classification:
+            by_class.setdefault(classification, []).append(candidate)
+
+    classifications = list(by_class)
+    if not classifications:
+        return None
+
+    action_occurrences = []
+    for concept_id, occurrences in active_occurrences.items():
+        if concept_id.startswith("ACAO_"):
+            action_occurrences.extend(occurrences)
+
+    # Uma única classificação sustentada pelos conceitos é suficiente para
+    # o fallback genérico, mesmo que não exista uma ação explícita.
+    if len(classifications) == 1:
+        selected_class = classifications[0]
+        selected = by_class[selected_class][0]
+        definition = selected["definition"]
+
+        evidence_patterns = [
+            f"{item['concept_id']}: {item['pattern']}"
+            for item in selected["evidence"]
+        ]
+
+        return {
+            "status": "Sugerida",
+            "intencao_id": definition["id"],
+            "intencao_identificada": definition.get(
+                "intencao",
+                definition.get("id"),
+            ),
+            "causa_identificada": list(
+                dict.fromkeys(evidence_patterns)
+            ),
+            "causa_padrao": definition.get("causa_padrao"),
+            "classificacao": selected_class,
+            "regra": definition.get("id"),
+            "candidatas": [definition.get("id")],
+            "ambiguo": False,
+            "origem_classificacao": "fallback_conceitual",
+        }
+
+    # Mais de um grupo só pode ser resolvido quando existe uma ação explícita
+    # que consiga ser associada de forma determinística a um único grupo.
+    if action_occurrences:
+        linked_classes = []
+        for action in action_occurrences:
+            linked = _nearest_fallback_class_for_action(
+                action,
+                candidates,
+            )
+            if linked:
+                linked_classes.append(linked)
+
+        linked_unique = list(dict.fromkeys(linked_classes))
+
+        if len(linked_unique) == 1:
+            selected_class = linked_unique[0]
+            selected = by_class[selected_class][0]
+            definition = selected["definition"]
+
+            evidence_patterns = [
+                f"{item['concept_id']}: {item['pattern']}"
+                for item in selected["evidence"]
+            ]
+
+            return {
+                "status": "Sugerida",
+                "intencao_id": definition["id"],
+                "intencao_identificada": definition.get(
+                    "intencao",
+                    definition.get("id"),
+                ),
+                "causa_identificada": list(
+                    dict.fromkeys(evidence_patterns)
+                ),
+                "causa_padrao": definition.get("causa_padrao"),
+                "classificacao": selected_class,
+                "regra": definition.get("id"),
+                "candidatas": [definition.get("id")],
+                "ambiguo": False,
+                "origem_classificacao": "fallback_conceitual",
+            }
+
+        # Há múltiplos grupos e uma ou mais ações, mas nenhuma associação
+        # determinística suficiente. Mantém a ambiguidade explícita.
+        return {
+            "status": "Ambígua",
+            "intencao_id": None,
+            "intencao_identificada": None,
+            "causa_identificada": [],
+            "causa_padrao": None,
+            "classificacao": None,
+            "regra": None,
+            "candidatas": [
+                candidate["definition"].get("id")
+                for candidate in candidates
+                if candidate["definition"].get("id")
+            ],
+            "ambiguo": True,
+            "classificacoes": classifications,
+            "origem_classificacao": "fallback_conceitual",
+        }
+
+    # Vários grupos, mas nenhum pedido operacional explícito. Não é
+    # ambiguidade operacional; é apenas informação contextual insuficiente.
+    return None
+
+
+# ---------------------------------------------------------------------------
 # PRECEDÊNCIA / CONTEXTO
 # ---------------------------------------------------------------------------
 
@@ -285,6 +1443,9 @@ def _pattern_is_explicit_action(
     normalized = normalize_text(
         pattern
     )
+
+    if normalized.startswith("acao ") or " acao " in f" {normalized} ":
+        return True
 
     action_markers = (
         "cancelar",
@@ -377,6 +1538,12 @@ def _remove_contextual_matches(
                 if normalized_pattern in prefix:
                     contextual_ids.add(intent_id)
 
+                elif _pattern_is_contextual(
+                    text,
+                    pattern,
+                ):
+                    contextual_ids.add(intent_id)
+
     if not contextual_ids:
         return matches
 
@@ -395,107 +1562,83 @@ def _apply_precedence(
     matched_patterns: dict[str, list[str]] | None = None,
     text: str = "",
 ) -> list[dict]:
-    """Aplica precedência sem esconder duas ações explícitas distintas."""
+    """Aplica precedência determinística e preserva conflitos sem regra."""
 
     if not matches:
         return matches
 
     matched_patterns = matched_patterns or {}
-    normalized_text = normalize_text(text)
 
-    # Contexto explícito: uma das intenções está apenas sendo mencionada.
-    context_markers = (
-        "so contexto",
-        "somente contexto",
-        "apenas contexto",
+    matches = _remove_contextual_matches(
+        matches,
+        matched_patterns,
+        text,
     )
 
-    has_context_marker = any(
-        marker in normalized_text
-        for marker in context_markers
-    )
+    # Se uma mesma ação foi aplicada a objetos coordenados de grupos
+    # diferentes, existe mais de um alvo operacional real. Precedência não
+    # deve esconder um dos alvos e transformar o pedido em falso singular.
+    if _coordinated_distinct_targets(text, dictionary):
+        return matches
 
-    # Verifica as ações explícitas ANTES da precedência.
-    explicit_intents = []
-
-    for intent in matches:
-        patterns = matched_patterns.get(
-            intent["id"],
-            [],
-        )
-
-        if any(
-            _pattern_is_explicit_action(pattern)
-            for pattern in patterns
-        ):
-            explicit_intents.append(intent)
-
-    # Duas ações explícitas de classes diferentes = ambígua.
-    #
-    # Exemplo:
-    # "Cancelar NF e cancelar contrato"
-    #
-    # Mas não bloqueia casos como:
-    # "cancelar/substituir NF com PO"
-    # porque as duas intenções pertencem à mesma classe.
-    #
-    # Também não bloqueia quando uma das menções foi declarada
-    # explicitamente como contexto.
-    if (
-        len(explicit_intents) > 1
-        and not has_context_marker
-    ):
-        classes = {
-            intent.get("classificacao")
-            for intent in explicit_intents
-        }
-
-        if len(classes) > 1:
-            return matches
-
-    # Aplica as precedências definidas no YAML.
+    # Primeiro resolve precedências documentadas no YAML. Isso é importante
+    # quando duas ações de classes diferentes aparecem no mesmo pedido, mas o
+    # próprio dicionário documenta qual intenção domina.
     remaining = {
         intent["id"]: intent
         for intent in matches
     }
 
     for rule in dictionary.get("precedencia", []):
-        preferred = rule["preferir"]
-
+        preferred = rule.get("preferir")
         if preferred not in remaining:
             continue
 
         for lower_priority in rule.get("sobre", []):
-            remaining.pop(
-                lower_priority,
-                None,
-            )
+            remaining.pop(lower_priority, None)
 
     matches = list(remaining.values())
 
     if len(matches) <= 1:
         return matches
 
-    # Se ainda houver mais de uma intenção,
-    # uma única ação explícita pode desempatar.
+    normalized_text = normalize_text(text)
+    context_markers = (
+        "so contexto",
+        "somente contexto",
+        "apenas contexto",
+    )
+    has_context_marker = any(
+        marker in normalized_text
+        for marker in context_markers
+    )
+
+    # Depois da precedência, duas intenções explícitas de classes diferentes
+    # continuam sendo conflito real -> ambígua.
     explicit_intents = []
-
     for intent in matches:
-        patterns = matched_patterns.get(
-            intent["id"],
-            [],
-        )
-
+        patterns = matched_patterns.get(intent["id"], [])
         if any(
             _pattern_is_explicit_action(pattern)
             for pattern in patterns
         ):
             explicit_intents.append(intent)
 
+    if len(explicit_intents) > 1 and not has_context_marker:
+        classes = {
+            intent.get("classificacao")
+            for intent in explicit_intents
+        }
+        if len(classes) > 1:
+            return matches
+
+    # Uma única ação explícita pode desempatar múltiplas evidências da mesma
+    # classe, sem inventar uma escolha entre classes diferentes.
     if len(explicit_intents) == 1:
         return explicit_intents
 
     return matches
+
 
 # ---------------------------------------------------------------------------
 # IDENTIFICAÇÃO DA INTENÇÃO
@@ -530,8 +1673,36 @@ def identify_intent(
         }
 
     matches = []
-    matched_patterns = {}
+    matched_patterns: dict[str, list[str]] = {}
+    matched_rules: dict[str, str] = {}
 
+    # ------------------------------------------------------------------
+    # 1. REGRAS CONCEITUAIS
+    # ------------------------------------------------------------------
+    conceptual_matches, conceptual_patterns, conceptual_rules = (
+        _concept_rule_matches_for_text(
+            text,
+            dictionary,
+        )
+    )
+
+    for intent in conceptual_matches:
+        intent_id = intent["id"]
+        matches.append(intent)
+        matched_patterns[intent_id] = list(
+            conceptual_patterns.get(
+                intent_id,
+                [],
+            )
+        )
+        matched_rules[intent_id] = conceptual_rules.get(
+            intent_id,
+            intent_id,
+        )
+
+    # ------------------------------------------------------------------
+    # 2. PADRÕES LEGADOS
+    # ------------------------------------------------------------------
     for intent in dictionary["intencoes"]:
         found = [
             pattern
@@ -560,11 +1731,23 @@ def identify_intent(
         ):
             continue
 
-        matches.append(intent)
+        intent_id = intent["id"]
 
-        matched_patterns[
-            intent["id"]
-        ] = found
+        if intent_id not in {
+            item["id"]
+            for item in matches
+        }:
+            matches.append(intent)
+
+        # Quando existe padrão legado explícito para a mesma intenção,
+        # ele é a evidência textual principal. O conceito continua sendo
+        # usado para decisão, mas não polui a saída operacional.
+        matched_patterns[intent_id] = found
+
+        matched_rules.setdefault(
+            intent_id,
+            intent_id,
+        )
 
     # IMPORTANTE:
     # a variável correta é "matches".
@@ -578,6 +1761,14 @@ def identify_intent(
     )
 
     if not matches:
+        fallback = _generic_classification_fallback(
+            text,
+            dictionary,
+        )
+
+        if fallback is not None:
+            return fallback
+
         return {
             "status": "Sem correspondência",
             "intencao_id": None,
@@ -676,7 +1867,10 @@ def identify_intent(
             else None
         ),
         "regra": (
-            selected["id"]
+            matched_rules.get(
+                selected["id"],
+                selected["id"],
+            )
             if selected
             else None
         ),
@@ -754,6 +1948,17 @@ def normalize_root_cause(
         for intent in dictionary["intencoes"]
     }
 
+    for fallback in dictionary.get(
+        "classificacoes_fallback",
+        [],
+    ):
+        if not isinstance(fallback, dict):
+            continue
+        fallback_cause = fallback.get("causa_padrao")
+        classification = fallback.get("classificacao")
+        if fallback_cause and classification:
+            class_by_cause[fallback_cause] = classification
+
     return {
         "causa_canonica": cause,
         "classificacao": class_by_cause.get(
@@ -826,9 +2031,13 @@ def suggest(
             classification
         ),
         "confianca": None,
-        "motivo": found[
+        "motivo": found.get(
             "intencao_identificada"
-        ],
+        ) or found.get(
+            "causa_padrao"
+        ) or found.get(
+            "classificacao"
+        ),
     }
 
 

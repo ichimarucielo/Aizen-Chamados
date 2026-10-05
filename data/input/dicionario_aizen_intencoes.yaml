@@ -1,7 +1,8 @@
 version: '1.0'
-proposito: Dicionário determinístico de intenção operacional para causa raiz padrão e classificação oficial.
-fonte_principal: data/input/plano_n2_template.xlsx; colunas históricas comparadas com Plano de ação - Chamados Fila N2 - Oficial
-  (4).xlsx.
+proposito: Dicionário determinístico de intenção operacional para causa raiz padrão
+  e classificação oficial.
+fonte_principal: data/input/plano_n2_template.xlsx; colunas históricas comparadas
+  com Plano de ação - Chamados Fila N2 - Oficial (4).xlsx.
 registros_analisados: 409
 classes_permitidas:
 - Cancelamento e Reemissão de Nota Fiscal
@@ -11,9 +12,18 @@ classes_permitidas:
 - Atendimento Administrativo e Suporte
 - Faturamento e Obrigações Fiscais
 principio:
-- A classificação decorre da intenção e da causa padrão, nunca de score ou quantidade de termos.
-- Padrões são ações sobre objetos; palavras de contexto isoladas não classificam.
-- 'O histórico é evidência, não verdade absoluta: conflitos e rótulos genéricos ficam explícitos.'
+- A classificação decorre da intenção e da causa padrão, nunca de score ou quantidade
+  de termos.
+- Regras conceituais representam relações reutilizáveis entre ação, objeto e contexto;
+  padrões legados permanecem como fallback.
+- Ações conceituais devem representar pedido ou atuação explícita; ocorrências passivas
+  ou meramente contextuais não bastam sozinhas.
+- Ação + objeto é a relação padrão para pedidos operacionais; contexto só complementa
+  a decisão.
+- Objeto + contexto só classifica quando a combinação representa uma situação inequívoca
+  prevista pelo dicionário.
+- 'O histórico é evidência, não verdade absoluta: conflitos e rótulos genéricos ficam
+  explícitos.'
 - Sem intenção única, não preencher causa padrão nem classificação automaticamente.
 precedencia:
 - preferir: INT_NF_CANCEL_REEMISSAO
@@ -24,16 +34,18 @@ precedencia:
   - INT_COB_ESTORNO
   - INT_COB_INADIMPLENCIA
   - INT_FAT_CORRECAO_PO
-  quando: Há pedido explícito de cancelar, substituir ou reemitir NF; cobrança, contrato, CNPJ, desconto e PO podem ser contexto.
+  quando: Há pedido explícito de cancelar, substituir ou reemitir NF; cobrança, contrato,
+    CNPJ, desconto e PO podem ser contexto.
+- preferir: INT_NF_CANCEL_REEMISSAO
+  sobre:
+  - INT_PAG_BOLETO_CANCELAMENTO
+  quando: Há pedido explícito de cancelar/anular/substituir/reemitir NF; baixa ou
+    cancelamento do boleto é consequência/contexto do mesmo pedido.
 - preferir: INT_PAG_VENCIMENTO
   sobre:
   - INT_PAG_BOLETO_REENVIO
   - INT_PAG_FINANCEIRO
   quando: O pedido é mudar a data/prazo; reenviar boleto é só o meio.
-- preferir: INT_CON_CANCELAMENTO
-  sobre:
-  - INT_NF_CANCEL_REEMISSAO
-  quando: O objeto cancelado é o contrato; NF aparece só como contexto.
 - preferir: INT_NF_REEMISSAO_PO
   sobre:
   - INT_NF_CANCEL_REEMISSAO
@@ -42,11 +54,13 @@ precedencia:
 - preferir: INT_PAG_NF_VINCULADA
   sobre:
   - INT_FAT_REENVIO_NF
-  quando: O boleto está em aberto e o pedido é receber a NF associada para efetuar o pagamento.
+  quando: O boleto está em aberto e o pedido é receber a NF associada para efetuar
+    o pagamento.
 - preferir: INT_FAT_CORRECAO_PO
   sobre:
   - INT_COB_CONTESTACAO
-  quando: Há pedido explícito de corrigir o descritivo/dado fiscal da NF ou carta de correção com PO.
+  quando: Há pedido explícito de corrigir o descritivo/dado fiscal da NF ou carta
+    de correção com PO.
 - preferir: INT_PAG_BOLETO_CANCELAMENTO
   sobre:
   - INT_COB_DUPLICIDADE
@@ -59,11 +73,659 @@ precedencia:
   sobre:
   - INT_NF_CANCEL_REEMISSAO
   quando: Pede congelar/suspender o contrato; cancelamento de NF é só contexto.
-- preferir: INT_NF_REEMISSAO_PO
-  sobre:
-  - INT_NF_CANCEL_REEMISSAO
-  quando: Quando a substituição da NF envolve PO, a intenção específica de NF com PO prevalece sobre o cancelamento/reemissão
-    genérico.
+conceitos:
+  ACAO_CANCELAR:
+  - cancelar
+  - cancelamento
+  - cancele
+  - cancelem
+  - cancela
+  - anular
+  - anulação
+  ACAO_SUBSTITUIR:
+  - substituir
+  - substituição
+  - trocar
+  - troca
+  ACAO_REEMITIR:
+  - reemitir
+  - reemissão
+  - emitir novamente
+  - emitir nova
+  - emitir outra
+  - nova emissão
+  ACAO_ALTERAR:
+  - alterar
+  - alteração
+  - mudar
+  - mudança de
+  - modificar
+  - modificação
+  ACAO_CORRIGIR:
+  - corrigir
+  - correção
+  - correção de
+  ACAO_PRORROGAR:
+  - prorrogar
+  - prorrogação
+  ACAO_REENVIAR:
+  - reenviar
+  - reenvio
+  - segunda via
+  - encaminhar novamente
+  - enviar novamente
+  ACAO_CONTESTAR:
+  - contestar
+  - contestação
+  - questionar
+  - questionamento
+  - reclamar
+  - reclamação
+  ACAO_REDUZIR:
+  - reduzir
+  - redução
+  - diminuir
+  - diminuição
+  ACAO_RENEGOCIAR:
+  - renegociar
+  - renegociação
+  - negociar
+  - negociação
+  - renegociacao
+  - negociacao
+  - negociando
+  ACAO_CONGELAR:
+  - congelar
+  - congelamento
+  - suspender
+  - suspensão
+  ACAO_INCLUIR:
+  - incluir
+  - inclusão
+  - acrescentar
+  - adicionar
+  ACAO_ESTORNAR:
+  - estornar
+  - estorno
+  - devolver
+  - devolução
+  - reembolso
+  - reembolsar
+  ACAO_ANULAR:
+  - anular
+  - anulação
+  ACAO_BAIXAR:
+  - baixar
+  - baixa
+  - dar baixa
+  - retirar do banco
+  - excluir o boleto
+  ACAO_VERIFICAR:
+  - verificar
+  - verificação
+  - revisar
+  - revisão
+  - revisitar
+  - revisite
+  - conferir
+  - conferência
+  - verifiquei
+  - verificamos
+  - verifique
+  - verifica
+  ACAO_CONSULTAR:
+  - consultar
+  - consulta
+  - saber
+  - gostaria de saber
+  ACAO_ENTENDER:
+  - entender
+  - entender sobre
+  - esclarecer
+  - explicar
+  - explicar se é devido
+  - tirar uma dúvida
+  # -------------------------
+  # ATENDIMENTO FINANCEIRO
+  # -------------------------
+
+  ACAO_ATENDIMENTO:
+  - falar com
+  - falar diretamente com
+  - entrar em contato com
+  - solicitar contato
+  - gostaria de falar
+  - desejo falar
+  - preciso falar
+  - podem me direcionar
+  - me direcionar para
+
+  OBJ_ATENDIMENTO_FINANCEIRO:
+  - financeiro
+  - setor financeiro
+  - área financeira
+  - area financeira
+  - equipe financeira
+  - time financeiro
+  - atendimento financeiro
+  - suporte financeiro
+  OBJ_NF:
+  - nf
+  - nota fiscal
+  - notas fiscais
+  OBJ_BOLETO:
+  - boleto
+  - boletos
+  OBJ_CONTRATO:
+  - contrato
+  - contratos
+  - contratual
+  OBJ_COBRANCA:
+  - cobrança
+  - cobranças
+  - cobrado
+  - cobrados
+  - cobradas
+  - cobrando
+  OBJ_FATURA:
+  - fatura
+  - faturas
+  OBJ_TAXA:
+  - taxa
+  - taxas
+  OBJ_PAGAMENTO:
+  - pagamento
+  - pagamentos
+  OBJ_PO:
+  - po
+  - pedido de compra
+  OBJ_CODIGO:
+  - código
+  - codigo
+  OBJ_CONTA_RECEBIMENTO:
+  - conta de recebimento
+  - conta para depósito
+  - domicílio bancário
+  - domicilio bancario
+  - conta bancária
+  - conta bancaria
+  - conta de pagamento
+  - número da conta
+  - numero da conta
+  OBJ_SERASA:
+  - serasa
+  OBJ_MID:
+  - mid
+  - mids
+  OBJ_TRANSACAO:
+  - transação
+  - transações
+  OBJ_MULTA:
+  - multa
+  - multa contratual
+  - penalidade contratual
+  OBJ_DIVIDA:
+  - dívida
+  - divida
+  - débito
+  - debito
+  OBJ_CREDITO:
+  - crédito
+  - créditos
+  - credito
+  - creditos
+  OBJ_INTEGRACAO:
+  - integração
+  - integracao
+  - integração do produto
+  - integracao do produto
+  - compatibilidade
+  - incompatibilidade
+  - compatível
+  - compativel
+  - incompatível
+  - incompativel
+  OBJ_PORTAL:
+  - portal
+  - acesso ao portal
+  - acesso admin
+  CTX_VENCIMENTO:
+  - vencimento
+  - data de vencimento
+  - prazo de pagamento
+  CTX_DATA_EMISSAO:
+  - data de emissão
+  - data de emissao
+  - mês errado
+  - mes errado
+  - mês correto
+  - mes correto
+  CTX_DUPLICIDADE:
+  - duplicidade
+  - duplicado
+  - duplicada
+  - em duplicidade
+  - duas nf
+  - duas notas
+  - dois boletos
+  CTX_FISCAL:
+  - fiscal
+  - fiscais
+  - dados fiscais
+  - requisito fiscal
+  - regra fiscal
+  CTX_PIX:
+  - pix
+  CTX_NBS:
+  - nbs
+  CTX_DIVERGENCIA:
+  - divergência
+  - divergencia
+  - diferença
+  - diferenca
+  - diferente
+  - incorreto
+  - incorreta
+  - discrepância
+  - discrepancia
+  - acima do esperado
+  - cobrado a mais
+  - a mais
+  - diferença de
+  - diferença entre
+  CTX_INDEVIDA:
+  - indevida
+  - indevido
+  - indevidamente
+  - não deveria
+  - nao deveria
+  - não deveria haver
+  - nao deveria haver
+  - não previsto
+  - nao previsto
+  - não acordado
+  - nao acordado
+  - não haveria
+  - nao haveria
+  - não haveria cobrança
+  - nao haveria cobranca
+  - não deveria ter sido realizada
+  - nao deveria ter sido realizada
+  CTX_NAO_AUTORIZADA:
+  - não autorizada
+  - nao autorizada
+  - não autorizadas
+  - nao autorizadas
+  - não estão sendo autorizadas
+  - nao estao sendo autorizadas
+  - não autenticadas
+  - nao autenticadas
+  - não estão sendo autenticadas
+  - nao estao sendo autenticadas
+  CTX_SEM_REGISTRO:
+  - sem registros
+  - sem registro
+  - não existem registros
+  - nao existem registros
+  - não localizar transações
+  - nao localizar transacoes
+  - não localizar registros
+  - nao localizar registros
+  - não localiza transações
+  - nao localiza transacoes
+  - não justificam as cobranças
+  - nao justificam as cobrancas
+  - não localizou transações
+  - nao localizou transacoes
+  - não localizou registros
+  - nao localizou registros
+  - não foram localizadas transações
+  - nao foram localizadas transacoes
+  - não foram encontrados registros
+  - nao foram encontrados registros
+  CTX_MENSALIDADE:
+  - mensalidade
+  - cobrança mensal
+  - cobranca mensal
+  - taxa mensal
+  CTX_ADESAO:
+  - adesão
+  - adesao
+  - fase de adesão
+  - fase de adesao
+  - processo financeiro ainda em andamento
+  CTX_PAGAMENTO_CONCLUIDO:
+  - paguei
+  - pago
+  - pagamento realizado
+  - pagamento efetuado
+  - quitado
+  - quitada
+  - dívida paga
+  - divida paga
+  CTX_REAJUSTE:
+  - reajuste
+  - data-base
+  - data base
+  - upgrade
+  - aumento de escopo
+  CTX_DESCONTO:
+  - desconto
+  - desconto aplicado
+  - ajuste com desconto
+  CTX_CONGELAMENTO:
+  - congelamento
+  - congelado
+  - suspensão
+  - suspensao
+  - suspender
+  CTX_BLOQUEIO:
+  - bloqueio
+  - restrição
+  - restricao
+  ACAO_REVISAR:
+  - revisar
+  - revisão
+  - revisar novamente
+  - revisitar
+  - revisite
+classificacoes_fallback:
+- id: FALLBACK_NF
+  intencao: Tratamento geral de nota fiscal.
+  causa_padrao: Tratamento Geral de Nota Fiscal
+  classificacao: Cancelamento e Reemissão de Nota Fiscal
+  conceitos:
+  - OBJ_NF
+
+- id: FALLBACK_COBRANCA
+  intencao: Análise ou tratamento geral de cobrança.
+  causa_padrao: Análise/Contestação de Cobrança
+  classificacao: Cobrança e Contestação
+  conceitos:
+  - OBJ_COBRANCA
+
+- id: FALLBACK_PAGAMENTO
+  intencao: Tratamento geral de boleto, pagamento ou recebimento.
+  causa_padrao: Tratamento Geral de Boleto/Pagamento
+  classificacao: Pagamentos, Boletos e Recebimentos
+  conceitos:
+  - OBJ_BOLETO
+  - OBJ_PAGAMENTO
+  - OBJ_CONTA_RECEBIMENTO
+  - OBJ_CREDITO
+
+- id: FALLBACK_CONTRATOS
+  intencao: Tratamento geral de contrato, comercial ou cadastro.
+  causa_padrao: Tratamento Contratual/Comercial/Cadastral
+  classificacao: Contratos, Comercial e Cadastro
+  conceitos:
+  - OBJ_CONTRATO
+  - OBJ_MID
+  - OBJ_MULTA
+
+- id: FALLBACK_ADMIN
+  intencao: Atendimento administrativo ou suporte geral.
+  causa_padrao: Atendimento Administrativo/Suporte
+  classificacao: Atendimento Administrativo e Suporte
+  conceitos:
+  - OBJ_SERASA
+  - OBJ_INTEGRACAO
+  - OBJ_PORTAL
+
+- id: FALLBACK_FATURAMENTO
+  intencao: Tratamento geral de faturamento ou obrigação fiscal.
+  causa_padrao: Faturamento/Obrigação Fiscal
+  classificacao: Faturamento e Obrigações Fiscais
+  conceitos:
+  - OBJ_FATURA
+  - CTX_FISCAL
+  - CTX_NBS
+
+regras_conceituais:
+- id: REG_ATENDIMENTO_FINANCEIRO
+  requisitos:
+  - ACAO_ATENDIMENTO
+  - OBJ_ATENDIMENTO_FINANCEIRO
+  escopo: texto
+  intencao: INT_ADM_INFORMACAO
+- id: REG_NF_CANCELAR
+  requisitos:
+  - ACAO_CANCELAR
+  - OBJ_NF
+  intencao: INT_NF_CANCEL_REEMISSAO
+- id: REG_NF_ANULAR
+  requisitos:
+  - ACAO_ANULAR
+  - OBJ_NF
+  intencao: INT_NF_CANCEL_REEMISSAO
+- id: REG_NF_SUBSTITUIR
+  requisitos:
+  - ACAO_SUBSTITUIR
+  - OBJ_NF
+  intencao: INT_NF_CANCEL_REEMISSAO
+- id: REG_NF_REEMITIR
+  requisitos:
+  - ACAO_REEMITIR
+  - OBJ_NF
+  intencao: INT_NF_CANCEL_REEMISSAO
+- id: REG_NF_DATA_EMISSAO
+  requisitos:
+  - ACAO_ALTERAR
+  - OBJ_NF
+  - CTX_DATA_EMISSAO
+  exclusoes:
+  - CTX_VENCIMENTO
+  intencao: INT_NF_DATA_EMISSAO
+- id: REG_NF_VENCIMENTO
+  requisitos:
+  - ACAO_ALTERAR
+  - OBJ_NF
+  - CTX_VENCIMENTO
+  intencao: INT_PAG_VENCIMENTO
+- id: REG_NF_CORRIGIR_CODIGO
+  requisitos:
+  - ACAO_CORRIGIR
+  - OBJ_NF
+  - OBJ_CODIGO
+  intencao: INT_NF_CORRECAO_CODIGO
+- id: REG_NF_ALTERAR_CODIGO
+  requisitos:
+  - ACAO_ALTERAR
+  - OBJ_NF
+  - OBJ_CODIGO
+  intencao: INT_NF_CORRECAO_CODIGO
+- id: REG_NF_REEMISSAO_PO
+  requisitos:
+  - - ACAO_SUBSTITUIR
+    - ACAO_REEMITIR
+  - OBJ_NF
+  - OBJ_PO
+  escopo: local
+  intencao: INT_NF_REEMISSAO_PO
+- id: REG_COB_ESTORNAR
+  requisitos:
+  - ACAO_ESTORNAR
+  - - OBJ_COBRANCA
+    - OBJ_TAXA
+    - OBJ_PAGAMENTO
+  intencao: INT_COB_ESTORNO
+- id: REG_COB_CONTESTAR
+  requisitos:
+  - ACAO_CONTESTAR
+  - OBJ_COBRANCA
+  intencao: INT_COB_CONTESTACAO
+- id: REG_COB_DIVERGENCIA
+  requisitos:
+  - OBJ_COBRANCA
+  - CTX_DIVERGENCIA
+  intencao: INT_COB_CONTESTACAO
+- id: REG_COB_NAO_AUTORIZADA
+  requisitos:
+  - OBJ_COBRANCA
+  - CTX_NAO_AUTORIZADA
+  intencao: INT_COB_CONTESTACAO
+- id: REG_COB_SEM_REGISTRO
+  requisitos:
+  - OBJ_COBRANCA
+  - CTX_SEM_REGISTRO
+  intencao: INT_COB_CONTESTACAO
+- id: REG_COB_INDEVIDA
+  requisitos:
+  - OBJ_COBRANCA
+  - CTX_INDEVIDA
+  intencao: INT_COB_CONTESTACAO
+- id: REG_COB_MENSALIDADE
+  requisitos:
+  - OBJ_COBRANCA
+  - CTX_MENSALIDADE
+  - - ACAO_ENTENDER
+    - ACAO_CONSULTAR
+  escopo: texto
+  intencao: INT_COB_CONTESTACAO
+- id: REG_COB_ADESAO_INDEVIDA
+  requisitos:
+  - OBJ_COBRANCA
+  - CTX_ADESAO
+  - CTX_INDEVIDA
+  escopo: texto
+  intencao: INT_COB_CONTESTACAO
+- id: REG_COB_CORRIGIR
+  requisitos:
+  - ACAO_CORRIGIR
+  - OBJ_COBRANCA
+  intencao: INT_COB_CONTESTACAO
+- id: REG_BOLETO_PRORROGAR
+  requisitos:
+  - ACAO_PRORROGAR
+  - OBJ_BOLETO
+  - CTX_VENCIMENTO
+  intencao: INT_PAG_VENCIMENTO
+- id: REG_BOLETO_ALTERAR_VENCIMENTO
+  requisitos:
+  - ACAO_ALTERAR
+  - OBJ_BOLETO
+  - CTX_VENCIMENTO
+  intencao: INT_PAG_VENCIMENTO
+- id: REG_BOLETO_REENVIAR
+  requisitos:
+  - ACAO_REENVIAR
+  - OBJ_BOLETO
+  intencao: INT_PAG_BOLETO_REENVIO
+- id: REG_BOLETO_CANCELAR
+  requisitos:
+  - ACAO_CANCELAR
+  - OBJ_BOLETO
+  intencao: INT_PAG_BOLETO_CANCELAMENTO
+- id: REG_BOLETO_BAIXAR
+  requisitos:
+  - ACAO_BAIXAR
+  - OBJ_BOLETO
+  intencao: INT_PAG_BOLETO_CANCELAMENTO
+- id: REG_BOLETO_DUPLICIDADE_CONSULTA
+  requisitos:
+  - OBJ_BOLETO
+  - CTX_DUPLICIDADE
+  - - ACAO_CONSULTAR
+    - ACAO_VERIFICAR
+  intencao: INT_COB_DUPLICIDADE
+- id: REG_CONTRATO_CANCELAR
+  requisitos:
+  - ACAO_CANCELAR
+  - OBJ_CONTRATO
+  intencao: INT_CON_CANCELAMENTO
+- id: REG_CONTRATO_CONGELAR
+  requisitos:
+  - ACAO_CONGELAR
+  - OBJ_CONTRATO
+  intencao: INT_CON_CONGELAMENTO
+- id: REG_CONTRATO_RENEGOCIAR
+  requisitos:
+  - ACAO_RENEGOCIAR
+  - OBJ_CONTRATO
+  intencao: INT_CON_CONDICOES
+- id: REG_CONTRATO_REAJUSTE
+  requisitos:
+  - OBJ_CONTRATO
+  - CTX_REAJUSTE
+  - - ACAO_RENEGOCIAR
+    - ACAO_REVISAR
+    - ACAO_VERIFICAR
+  escopo: texto
+  intencao: INT_CON_CONDICOES
+- id: REG_TAXA_REDUZIR
+  requisitos:
+  - ACAO_REDUZIR
+  - OBJ_TAXA
+  intencao: INT_CON_CONDICOES
+- id: REG_MULTA_CONTRATUAL
+  requisitos:
+  - OBJ_MULTA
+  - OBJ_CONTRATO
+  escopo: texto
+  intencao: INT_CON_INFORMACAO
+- id: REG_CONTA_ALTERAR
+  requisitos:
+  - ACAO_ALTERAR
+  - OBJ_CONTA_RECEBIMENTO
+  intencao: INT_PAG_CONTA
+- id: REG_SERASA_PAGO
+  requisitos:
+  - OBJ_SERASA
+  - CTX_PAGAMENTO_CONCLUIDO
+  escopo: texto
+  intencao: INT_ADM_ACESSO
+- id: REG_NF_CORRIGIR_FISCAL
+  requisitos:
+  - ACAO_CORRIGIR
+  - OBJ_NF
+  - CTX_FISCAL
+  intencao: INT_FAT_CORRECAO_PO
+- id: REG_NBS_NF
+  requisitos:
+  - OBJ_NF
+  - CTX_NBS
+  intencao: INT_FAT_REQUISITO
+- id: REG_NF_TRANSACOES_VERIFICAR
+  requisitos:
+  - - ACAO_VERIFICAR
+    - ACAO_CONSULTAR
+  - OBJ_NF
+  - OBJ_TRANSACAO
+  escopo: texto
+  intencao: INT_FAT_DUVIDA
+- id: REG_FATURA_DIVERGENCIA
+  requisitos:
+  - OBJ_FATURA
+  - CTX_DIVERGENCIA
+  escopo: texto
+  intencao: INT_COB_CONTESTACAO
+- id: REG_FATURA_TRANSACOES_DIVERGENCIA
+  requisitos:
+  - OBJ_FATURA
+  - OBJ_TRANSACAO
+  - CTX_DIVERGENCIA
+  escopo: texto
+  intencao: INT_COB_CONTESTACAO
+- id: REG_NF_TRANSACOES_DIVERGENCIA
+  requisitos:
+  - OBJ_NF
+  - OBJ_TRANSACAO
+  - CTX_DIVERGENCIA
+  escopo: texto
+  intencao: INT_COB_CONTESTACAO
+- id: REG_CONTRATO_DESCONTO_REAJUSTE
+  requisitos:
+  - OBJ_CONTRATO
+  - CTX_DESCONTO
+  - CTX_REAJUSTE
+  escopo: texto
+  intencao: INT_CON_CONDICOES
+- id: REG_CONTRATO_DESCONTO
+  requisitos:
+  - OBJ_CONTRATO
+  - CTX_DESCONTO
+  escopo: texto
+  intencao: INT_CON_CONDICOES
 intencoes:
 - id: INT_NF_CANCEL_REEMISSAO
   intencao: Cancelar, substituir ou reemitir nota fiscal.
@@ -104,6 +766,8 @@ intencoes:
   - cancelar as seguintes notas fiscais
   - cancele todas as notas
   - cancele todas as notas dos clientes
+  - cancelamento + das nf
+  - substituição nf
   exclusoes:
   - cancelar boleto
   - cancelamento de boleto
@@ -133,6 +797,11 @@ intencoes:
   - emitir nf no mês correto
   - emissão no final do mês
   - emitidas no final do mês
+  - emissão no final
+  - alteração na data de emissão
+  - alteração da data de emissão
+  - alterar a data de emissão
+  - mudar a data de emissão
   aliases_historicos:
   - Alterar data de emissão da NF
   evidencias_historicas: 4
@@ -144,6 +813,7 @@ intencoes:
   - corrigir código da nf
   - código da nf incorreto
   - mudar código da nf
+  - código diferente
   aliases_historicos:
   - Mudança de código NF
   evidencias_historicas: 1
@@ -219,6 +889,13 @@ intencoes:
   - cobrança alta
   - explicar estas cobranças
   - motivo dos ajustes
+  - não reconhecemos essas cobranças
+  - cobranças de transações não autorizadas
+  - transações não autorizadas foram cobradas
+  - cobrança sem mensalidade acordada
+  - cobrança de antifraude sem registros
+  - não deveria haver essa cobrança
+  - cobrança acima do contratado
   aliases_historicos:
   - Contestação de cobrança
   - Dúvidas sobre cobrança
@@ -345,8 +1022,14 @@ intencoes:
   - emitidos para pagamento nas datas
   - vencimento sempre no mês seguinte
   - boletos passem a ser emitidos até o dia
+  - prorrogar + vencimento
   exclusoes:
-  - data de emissão da nf
+  - alterar data de emissão da nf
+  - mudar data de emissão da nf
+  - alterar a data de emissão
+  - mudar a data de emissão
+  - alteração na data de emissão
+  - alteração da data de emissão
   aliases_historicos:
   - Alteração de vencimento / prorrogação
   - Alteração de vencimento / Prorrogação / Reenvio de boleto
@@ -379,7 +1062,8 @@ intencoes:
   - Cancelamento de boletos
   evidencias_historicas: 2
 - id: INT_PAG_FINANCEIRO
-  intencao: Consultar pagamentos, débitos, pendências ou recebíveis sem contestar o valor.
+  intencao: Consultar pagamentos, débitos, pendências ou recebíveis sem contestar
+    o valor.
   causa_padrao: Consulta/Regularização Financeira
   classificacao: Pagamentos, Boletos e Recebimentos
   padroes:
@@ -527,6 +1211,10 @@ intencoes:
   - incluir mid
   - renovação contratual
   - novo termo de adesão
+  - redução de taxa
+  - redução da taxa
+  - renegociação da taxa
+  - revisão da taxa comercial
   aliases_historicos:
   - Pendente Retorno Comercial
   - Renegociação contrato
@@ -599,7 +1287,8 @@ intencoes:
   - Cliente reclamando da integração do produto, direcionei para a fila do comercial
   evidencias_historicas: 5
 - id: INT_ADM_INFORMACAO
-  intencao: Solicitar informação administrativa genérica, sem outra intenção operacional identificável.
+  intencao: Solicitar informação administrativa genérica, sem outra intenção operacional
+    identificável.
   causa_padrao: Informação Administrativa Geral
   classificacao: Atendimento Administrativo e Suporte
   padroes:
@@ -637,7 +1326,8 @@ intencoes:
   - Dúvida sobre adiantamento
   evidencias_historicas: 9
 - id: INT_FAT_REENVIO_NF
-  intencao: Reenviar nota fiscal/documento fiscal não recebido, sem foco em boleto aberto.
+  intencao: Reenviar nota fiscal/documento fiscal não recebido, sem foco em boleto
+    aberto.
   causa_padrao: Reenvio de Nota Fiscal
   classificacao: Faturamento e Obrigações Fiscais
   padroes:
@@ -688,6 +1378,11 @@ intencoes:
   - requisito fiscal do cliente
   - regra fiscal do cliente
   - retenção de imposto
+  - NBS na nota
+  - código NBS da nota
+  - notas com nbs
+  - informar o NBS
+  - inclusão do NBS na NF
   aliases_historicos:
   - Requisito fiscal do cliente
   evidencias_historicas: 1
@@ -705,10 +1400,10 @@ conflitos_e_excecoes:
   lados:
   - Atendimento Administrativo e Suporte no histórico
   - Cobrança, Contratos ou Faturamento sugeridos pelo conteúdo
-  diferenca_intencao: O texto descreve trabalhos concretos diferentes; o rótulo Outros não representa uma causa operacional
-    única.
-  regra: Não mapear Outros automaticamente. Detectar intenção explícita no texto; sem evidência suficiente, deixar sem classificação
-    para revisão.
+  diferenca_intencao: O texto descreve trabalhos concretos diferentes; o rótulo Outros
+    não representa uma causa operacional única.
+  regra: Não mapear Outros automaticamente. Detectar intenção explícita no texto;
+    sem evidência suficiente, deixar sem classificação para revisão.
 - id: boleto_nf_misto
   causa_ou_rotulo: Reenvio de boleto / NF
   quantidade: 13
@@ -726,9 +1421,10 @@ conflitos_e_excecoes:
   - Solicitar boleto e NF
   - Perguntar sobre boleto e NF
   - Cancelar NF e boleto no mesmo pedido
-  diferenca_intencao: O rótulo combina dois objetos; o pedido operacional varia entre registros, embora a classe histórica
-    seja Pagamentos, Boletos e Recebimentos.
-  regra: Não usar o alias histórico sozinho. Classificar pelo verbo/objeto explícito; se não houver ação única, retornar ambíguo.
+  diferenca_intencao: O rótulo combina dois objetos; o pedido operacional varia entre
+    registros, embora a classe histórica seja Pagamentos, Boletos e Recebimentos.
+  regra: Não usar o alias histórico sozinho. Classificar pelo verbo/objeto explícito;
+    se não houver ação única, retornar ambíguo.
 - id: po_correcao_versus_reemissao
   causa_ou_rotulo: PO incluído na NF
   quantidade: 6
@@ -743,10 +1439,11 @@ conflitos_e_excecoes:
   - Substituição/reemissão de NF com PO
   - Carta de correção para incluir PO
   - PO em próximas NFs sem ação de correção explícita
-  diferenca_intencao: A ação de substituir/reemitir leva a Cancelamento e Reemissão de Nota Fiscal; carta de correção sem
-    reemissão leva a Faturamento e Obrigações Fiscais. PO isolado não decide.
-  regra: NF + ação explícita de substituir/reemitir => intenção de reemissão; carta de correção + PO => intenção fiscal; inclusão
-    de PO sem ação clara => revisão/ambiguidade.
+  diferenca_intencao: A ação de substituir/reemitir leva a Cancelamento e Reemissão
+    de Nota Fiscal; carta de correção sem reemissão leva a Faturamento e Obrigações
+    Fiscais. PO isolado não decide.
+  regra: NF + ação explícita de substituir/reemitir => intenção de reemissão; carta
+    de correção + PO => intenção fiscal; inclusão de PO sem ação clara => revisão/ambiguidade.
 - id: cancelamento_produto_com_contexto_nf
   causa_ou_rotulo: Cancelamento contrato (produto) / NF
   quantidade: 1
@@ -755,7 +1452,8 @@ conflitos_e_excecoes:
   lados:
   - Cancelamento de produto/contrato e cobranças associadas
   - NF citada apenas como contexto do histórico
-  diferenca_intencao: O texto pede cancelar o produto 3DS e suas cobranças, não cancelar a nota fiscal.
+  diferenca_intencao: O texto pede cancelar o produto 3DS e suas cobranças, não cancelar
+    a nota fiscal.
   regra: Ação explícita de cancelar produto/contrato => Contratos, Comercial e Cadastro.
 - id: rotulo_generico_duvidas
   causa_ou_rotulo: Dúvidas
@@ -763,10 +1461,12 @@ conflitos_e_excecoes:
   exemplos_chamado:
   - '27130737'
   lados:
-  - 'Classe histórica: Contratos, Comercial e Cadastro'
+  - Classe histórica: Contratos, Comercial e Cadastro
   - Descrição interrompida antes de informar o pedido final
-  diferenca_intencao: O texto termina em “Dessa forma, gostaria” e não revela a ação solicitada.
-  regra: Não usar o rótulo Dúvidas como alias classificável; solicitar complemento/revisão humana.
+  diferenca_intencao: O texto termina em “Dessa forma, gostaria” e não revela a ação
+    solicitada.
+  regra: Não usar o rótulo Dúvidas como alias classificável; solicitar complemento/revisão
+    humana.
 - id: rotulo_generico_informacoes_geral
   causa_ou_rotulo: Informações geral
   quantidade: 3
@@ -778,8 +1478,10 @@ conflitos_e_excecoes:
   - Confirmação de pedido/pagamento
   - Descrição vazia
   - Incompatibilidade de integração
-  diferenca_intencao: O rótulo reúne ações administrativas diferentes e uma descrição vazia.
-  regra: Usar a ação explícita do texto; descrição vazia permanece sem classificação automática.
+  diferenca_intencao: O rótulo reúne ações administrativas diferentes e uma descrição
+    vazia.
+  regra: Usar a ação explícita do texto; descrição vazia permanece sem classificação
+    automática.
 - id: volumetria_3ds_sem_classificacao
   causa_ou_rotulo: questionar a volumetria cobrada referente ao produto 3DS
   quantidade: 1
@@ -788,31 +1490,33 @@ conflitos_e_excecoes:
   lados:
   - Causa registrada
   - Classificação vazia no histórico
-  diferenca_intencao: O texto questiona transparência/conferência da volumetria; não há rótulo de classe histórico para validar
-    a inferência.
-  regra: Candidato a Contestação/Divergência de Cobrança; manter como revisão do N2, não contabilizar como classificação histórica
-    correta.
+  diferenca_intencao: O texto questiona transparência/conferência da volumetria; não
+    há rótulo de classe histórico para validar a inferência.
+  regra: Candidato a Contestação/Divergência de Cobrança; manter como revisão do N2,
+    não contabilizar como classificação histórica correta.
 - id: causa_historica_vazia
   causa_ou_rotulo: Causa raiz vazia
   quantidade: 1
   exemplos_chamado:
   - '26858033'
   lados:
-  - 'Classe histórica: Cancelamento e Reemissão de Nota Fiscal'
+  - Classe histórica: Cancelamento e Reemissão de Nota Fiscal
   - Descrição pede cancelamento de NF de setup sem contrato fechado
-  diferenca_intencao: A classe pode ser inferida pelo pedido explícito, mas a causa histórica está vazia.
+  diferenca_intencao: A classe pode ser inferida pelo pedido explícito, mas a causa
+    histórica está vazia.
   regra: Classificar a partir da descrição; manter o dado faltante registrado no relatório.
 - id: valor_nf_contestar_vs_verificar
   causa_ou_rotulo: Dúvida/divergência de valor da NF ou transações
-  regra: 'Histórico: contestar/questionar valor, volume ou transações cobradas => Cobrança e Contestação; confirmar qual NF
-    é válida, duas NFs recebidas, valor correto para pagar ou MIDs cobrados => Faturamento e Obrigações Fiscais.'
+  regra: 'Histórico: contestar/questionar valor, volume ou transações cobradas =>
+    Cobrança e Contestação; confirmar qual NF é válida, duas NFs recebidas, valor
+    correto para pagar ou MIDs cobrados => Faturamento e Obrigações Fiscais.'
 - id: sem_cobranca_dividido
   causa_ou_rotulo: Cliente ativo sem cobrança
   exemplos_chamado:
   - '17839281'
   - '25276254'
-  regra: Histórico dividido entre Faturamento e Contratos. O dicionário adota Faturamento porque a ação principal é verificar
-    o faturamento.
+  regra: Histórico dividido entre Faturamento e Contratos. O dicionário adota Faturamento
+    porque a ação principal é verificar o faturamento.
 - id: rotulos_template_divergentes
   causa_ou_rotulo: Rótulo do template diverge da ação pedida no corpo
   exemplos_chamado:
@@ -823,10 +1527,15 @@ conflitos_e_excecoes:
   - '25974810'
   - '27052744'
   - '27749029'
-  regra: A classificação decorre da ação pedida no corpo do chamado; nesses chamados o rótulo histórico não deve ser usado
-    como evidência única.
+  regra: A classificação decorre da ação pedida no corpo do chamado; nesses chamados
+    o rótulo histórico não deve ser usado como evidência única.
 regras_de_nao_classificacao:
 - Não classificar por palavra isolada, score ou quantidade de termos.
+- Conceitos precisam participar de uma regra conceitual válida; objeto ou contexto
+  isolado não classifica.
+- Ação + objeto é a combinação padrão para pedidos operacionais.
+- Objeto + contexto só classifica quando a combinação representa uma situação inequívoca
+  já prevista pelo dicionário.
 - Não usar assunto quando Descrição detalhada estiver preenchida.
 - Não usar Outros como intenção automática.
 - Não inferir classificação para descrição vazia ou conflito sem precedência documentada.

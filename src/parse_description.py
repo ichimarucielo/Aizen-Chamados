@@ -142,18 +142,39 @@ def parse_description(
 
 
 def extract_problem(raw_description) -> str:
-    """Trecho 'Descrição do problema', como a fórmula de Descrição detalhada do template."""
-
+    """Trecho 'Descrição do problema' ou texto inteiro quando não houver formulário."""
     if pd.isna(raw_description):
         return ""
 
     text = str(raw_description)
+
+    # Formulário HTML do Salesforce
     match = re.search(
         r"Descrição do problema:</strong>(.*?)(?:</p>|$)",
         text,
-        flags=re.DOTALL,
+        flags=re.DOTALL | re.IGNORECASE,
     )
     if match:
         return normalize_description(match.group(1))
 
-    return normalize_description(text)
+    plain = normalize_description(text)
+
+    # Formulário em texto simples
+    labels = (
+        r"(?:Qual seu nome|Endereço de e-mail|Telefone|CNPJ/CPF|"
+        r"Assunto|Merchant ID|Sobre qual produto|Como podemos)"
+    )
+
+    match = re.search(
+        r"Descrição do problema:\s*(.*?)(?=\n"
+        + labels
+        + r"[^\n]*:|\Z)",
+        plain,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
+
+    if match and match.group(1).strip():
+        return match.group(1).strip()
+
+    # E-mail / texto solto / assunto sem formulário
+    return plain

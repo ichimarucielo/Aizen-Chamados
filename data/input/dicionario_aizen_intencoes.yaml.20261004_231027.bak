@@ -55,6 +55,15 @@ precedencia:
   sobre:
   - INT_FAT_REENVIO_NF
   quando: Pede cancelar e emitir nova NF, não apenas reenviar.
+- preferir: INT_CON_CONGELAMENTO
+  sobre:
+  - INT_NF_CANCEL_REEMISSAO
+  quando: Pede congelar/suspender o contrato; cancelamento de NF é só contexto.
+- preferir: INT_NF_REEMISSAO_PO
+  sobre:
+  - INT_NF_CANCEL_REEMISSAO
+  quando: Quando a substituição da NF envolve PO, a intenção específica de NF com PO prevalece sobre o cancelamento/reemissão
+    genérico.
 intencoes:
 - id: INT_NF_CANCEL_REEMISSAO
   intencao: Cancelar, substituir ou reemitir nota fiscal.
@@ -92,6 +101,9 @@ intencoes:
   - nf + ser canceladas
   - substituição de nf
   - substituição de todas as nf
+  - cancelar as seguintes notas fiscais
+  - cancele todas as notas
+  - cancele todas as notas dos clientes
   exclusoes:
   - cancelar boleto
   - cancelamento de boleto
@@ -145,6 +157,9 @@ intencoes:
   - substituir nf + po
   - reemissão de nf + po
   - reemitir nf + po
+  - cancelar substituir nf com po
+  - cancelar e substituir nf com po
+  - substituir nf com po
   aliases_historicos:
   - Reemissão de NF (incluir PO)
   evidencias_historicas: 4
@@ -193,6 +208,17 @@ intencoes:
   - esclarecer ao que se refere a cobrança
   - transações que estamos cobrando
   - valor está incorreto
+  - divergência de registros
+  - diferença de registros
+  - de qual estabelecimento são essas transações
+  - quantidade de transações
+  - divergência de tarifa
+  - cobrança acima do esperado
+  - tentativas de fraude foram cobradas
+  - cobranças em aberto
+  - cobrança alta
+  - explicar estas cobranças
+  - motivo dos ajustes
   aliases_historicos:
   - Contestação de cobrança
   - Dúvidas sobre cobrança
@@ -215,6 +241,10 @@ intencoes:
   - cobrada em duplicidade
   - cobradas em duplicidade
   - cobranças duplicadas
+  - valores em duplicidade
+  - notas cobrando valores em duplicidade
+  - setup foi cobrado errado duplicado
+  - cobrado em duplicidade pelo aluguel
   aliases_historicos:
   - Duplicidade De Cobrança
   - Duplicidade nf de antifraude
@@ -230,6 +260,10 @@ intencoes:
   - cobrança de chaves de loja
   - cobrança de chave de loja
   - chaves de loja + custo
+  - geração da cobrança de um setup
+  - geração de cobrança de setup
+  - gerar cobrança de setup
+  - nova chave na solução de split de pagamentos
   aliases_historicos:
   - Cobrança de Setup
   - Cobrança Taxa Setup
@@ -305,6 +339,12 @@ intencoes:
   - prorrogação da nf
   - prorrogação de boleto
   - data de vencimento atualizada
+  - ajuste no boleto para pagamento hoje sem juros
+  - boleto com data de vencimento atualizada
+  - calendário de pagamentos
+  - emitidos para pagamento nas datas
+  - vencimento sempre no mês seguinte
+  - boletos passem a ser emitidos até o dia
   exclusoes:
   - data de emissão da nf
   aliases_historicos:
@@ -451,6 +491,13 @@ intencoes:
   - incluir o email
   - incluir email
   - encaminhar as faturas + email
+  - encaminhar as faturas para
+  - atualização para enviar boletos e notas fiscais
+  - próximos envios de cobrança
+  - mids não foram gerados
+  - mids não foram cadastrados
+  - alteração do cnpj e razão social
+  - cessão contratual para alteração do cnpj
   exclusoes:
   - cancelar contrato
   aliases_historicos:
@@ -600,6 +647,9 @@ intencoes:
   - enviar notas fiscais
   - não recebemos as notas fiscais de meses anteriores
   - encaminhar as nfs de meses anteriores
+  - encaminhar as nfs
+  - encaminhar notas fiscais
+  - enviar as notas fiscais
   exclusoes:
   - boleto em aberto
   aliases_historicos:
@@ -621,6 +671,7 @@ intencoes:
   - erro no descritivo dos serviços da nf
   - corrigir descrição da nota fiscal
   - conste + po + corrigir
+  - corrigir descritivo dos serviços
   exclusoes:
   - cancelar nf
   - substituir nf
