@@ -1,9 +1,6 @@
-version: '1.0'
-proposito: Dicionário determinístico de intenção operacional para causa raiz padrão
-  e classificação oficial.
-fonte_principal: data/input/plano_n2_template.xlsx; colunas históricas comparadas
-  com Plano de ação - Chamados Fila N2 - Oficial (4).xlsx.
-registros_analisados: 409
+version: '2.0'
+proposito: Dicionário determinístico consolidado de causas raiz e padrões textuais para classificação de chamados financeiros
+  em seis classes oficiais.
 classes_permitidas:
 - Cancelamento e Reemissão de Nota Fiscal
 - Cobrança e Contestação
@@ -11,745 +8,280 @@ classes_permitidas:
 - Contratos, Comercial e Cadastro
 - Atendimento Administrativo e Suporte
 - Faturamento e Obrigações Fiscais
-principio:
-- A classificação decorre da intenção e da causa padrão, nunca de score ou quantidade
-  de termos.
-- Regras conceituais representam relações reutilizáveis entre ação, objeto e contexto;
-  padrões legados permanecem como fallback.
-- Ações conceituais devem representar pedido ou atuação explícita; ocorrências passivas
-  ou meramente contextuais não bastam sozinhas.
-- Ação + objeto é a relação padrão para pedidos operacionais; contexto só complementa
-  a decisão.
-- Objeto + contexto só classifica quando a combinação representa uma situação inequívoca
-  prevista pelo dicionário.
-- 'O histórico é evidência, não verdade absoluta: conflitos e rótulos genéricos ficam
-  explícitos.'
-- Sem intenção única, não preencher causa padrão nem classificação automaticamente.
-precedencia:
-- preferir: INT_NF_CANCEL_REEMISSAO
-  sobre:
-  - INT_COB_CONTESTACAO
-  - INT_COB_DUPLICIDADE
-  - INT_COB_SETUP
-  - INT_COB_ESTORNO
-  - INT_COB_INADIMPLENCIA
-  - INT_FAT_CORRECAO_PO
-  quando: Há pedido explícito de cancelar, substituir ou reemitir NF; cobrança, contrato,
-    CNPJ, desconto e PO podem ser contexto.
-- preferir: INT_NF_CANCEL_REEMISSAO
-  sobre:
-  - INT_PAG_BOLETO_CANCELAMENTO
-  quando: Há pedido explícito de cancelar/anular/substituir/reemitir NF; baixa ou
-    cancelamento do boleto é consequência/contexto do mesmo pedido.
-- preferir: INT_PAG_VENCIMENTO
-  sobre:
-  - INT_PAG_BOLETO_REENVIO
-  - INT_PAG_FINANCEIRO
-  quando: O pedido é mudar a data/prazo; reenviar boleto é só o meio.
-- preferir: INT_NF_REEMISSAO_PO
-  sobre:
-  - INT_NF_CANCEL_REEMISSAO
-  - INT_FAT_CORRECAO_PO
-  quando: A ação é substituir/reemitir a NF e incluir PO no mesmo pedido.
-- preferir: INT_PAG_NF_VINCULADA
-  sobre:
-  - INT_FAT_REENVIO_NF
-  quando: O boleto está em aberto e o pedido é receber a NF associada para efetuar
-    o pagamento.
-- preferir: INT_FAT_CORRECAO_PO
-  sobre:
-  - INT_COB_CONTESTACAO
-  quando: Há pedido explícito de corrigir o descritivo/dado fiscal da NF ou carta
-    de correção com PO.
-- preferir: INT_PAG_BOLETO_CANCELAMENTO
-  sobre:
-  - INT_COB_DUPLICIDADE
-  quando: A ação é retirar/baixar um boleto duplicado no banco.
-- preferir: INT_NF_CANCEL_REEMISSAO
-  sobre:
-  - INT_FAT_REENVIO_NF
-  quando: Pede cancelar e emitir nova NF, não apenas reenviar.
-- preferir: INT_CON_CONGELAMENTO
-  sobre:
-  - INT_NF_CANCEL_REEMISSAO
-  quando: Pede congelar/suspender o contrato; cancelamento de NF é só contexto.
-conceitos:
-  ACAO_CANCELAR:
-  - cancelar
-  - cancelamento
-  - cancele
-  - cancelem
-  - cancela
-  - anular
-  - anulação
-  ACAO_SUBSTITUIR:
-  - substituir
-  - substituição
-  - trocar
-  - troca
-  ACAO_REEMITIR:
-  - reemitir
-  - reemissão
-  - emitir novamente
-  - emitir nova
-  - emitir outra
-  - nova emissão
-  ACAO_ALTERAR:
-  - alterar
-  - alteração
-  - mudar
-  - mudança de
-  - modificar
-  - modificação
-  ACAO_CORRIGIR:
-  - corrigir
-  - correção
-  - correção de
-  ACAO_PRORROGAR:
-  - prorrogar
-  - prorrogação
-  ACAO_REENVIAR:
-  - reenviar
-  - reenvio
-  - segunda via
-  - encaminhar novamente
-  - enviar novamente
-  ACAO_CONTESTAR:
-  - contestar
-  - contestação
-  - questionar
-  - questionamento
-  - reclamar
-  - reclamação
-  ACAO_REDUZIR:
-  - reduzir
-  - redução
-  - diminuir
-  - diminuição
-  ACAO_RENEGOCIAR:
-  - renegociar
-  - renegociação
-  - negociar
-  - negociação
-  - renegociacao
-  - negociacao
-  - negociando
-  ACAO_CONGELAR:
-  - congelar
-  - congelamento
-  - suspender
-  - suspensão
-  ACAO_INCLUIR:
-  - incluir
-  - inclusão
-  - acrescentar
-  - adicionar
-  ACAO_ESTORNAR:
-  - estornar
-  - estorno
-  - devolver
-  - devolução
-  - reembolso
-  - reembolsar
-  ACAO_ANULAR:
-  - anular
-  - anulação
-  ACAO_BAIXAR:
-  - baixar
-  - baixa
-  - dar baixa
-  - retirar do banco
-  - excluir o boleto
-  ACAO_VERIFICAR:
-  - verificar
-  - verificação
-  - revisar
-  - revisão
-  - revisitar
-  - revisite
-  - conferir
-  - conferência
-  - verifiquei
-  - verificamos
-  - verifique
-  - verifica
-  ACAO_CONSULTAR:
-  - consultar
-  - consulta
-  - saber
-  - gostaria de saber
-  ACAO_ENTENDER:
-  - entender
-  - entender sobre
-  - esclarecer
-  - explicar
-  - explicar se é devido
-  - tirar uma dúvida
-  # -------------------------
-  # ATENDIMENTO FINANCEIRO
-  # -------------------------
 
-  ACAO_ATENDIMENTO:
-  - falar com
-  - falar diretamente com
-  - entrar em contato com
-  - solicitar contato
-  - gostaria de falar
-  - desejo falar
-  - preciso falar
-  - podem me direcionar
-  - me direcionar para
+causas:
+  CANCELAMENTO_NF:
+    nome: Cancelamento de NF
+    classificacao: Cancelamento e Reemissão de Nota Fiscal
 
-  OBJ_ATENDIMENTO_FINANCEIRO:
-  - financeiro
-  - setor financeiro
-  - área financeira
-  - area financeira
-  - equipe financeira
-  - time financeiro
-  - atendimento financeiro
-  - suporte financeiro
-  OBJ_NF:
-  - nf
-  - nota fiscal
-  - notas fiscais
-  OBJ_BOLETO:
-  - boleto
-  - boletos
-  OBJ_CONTRATO:
-  - contrato
-  - contratos
-  - contratual
-  OBJ_COBRANCA:
-  - cobrança
-  - cobranças
-  - cobrado
-  - cobrados
-  - cobradas
-  - cobrando
-  OBJ_FATURA:
-  - fatura
-  - faturas
-  OBJ_TAXA:
-  - taxa
-  - taxas
-  OBJ_PAGAMENTO:
-  - pagamento
-  - pagamentos
-  OBJ_PO:
-  - po
-  - pedido de compra
-  OBJ_CODIGO:
-  - código
-  - codigo
-  OBJ_CONTA_RECEBIMENTO:
-  - conta de recebimento
-  - conta para depósito
-  - domicílio bancário
-  - domicilio bancario
-  - conta bancária
-  - conta bancaria
-  - conta de pagamento
-  - número da conta
-  - numero da conta
-  OBJ_SERASA:
-  - serasa
-  OBJ_MID:
-  - mid
-  - mids
-  OBJ_TRANSACAO:
-  - transação
-  - transações
-  OBJ_MULTA:
-  - multa
-  - multa contratual
-  - penalidade contratual
-  OBJ_DIVIDA:
-  - dívida
-  - divida
-  - débito
-  - debito
-  OBJ_CREDITO:
-  - crédito
-  - créditos
-  - credito
-  - creditos
-  OBJ_INTEGRACAO:
-  - integração
-  - integracao
-  - integração do produto
-  - integracao do produto
-  - compatibilidade
-  - incompatibilidade
-  - compatível
-  - compativel
-  - incompatível
-  - incompativel
-  OBJ_PORTAL:
-  - portal
-  - acesso ao portal
-  - acesso admin
-  CTX_VENCIMENTO:
-  - vencimento
-  - data de vencimento
-  - prazo de pagamento
-  CTX_DATA_EMISSAO:
-  - data de emissão
-  - data de emissao
-  - mês errado
-  - mes errado
-  - mês correto
-  - mes correto
-  CTX_DUPLICIDADE:
-  - duplicidade
-  - duplicado
-  - duplicada
-  - em duplicidade
-  - duas nf
-  - duas notas
-  - dois boletos
-  CTX_FISCAL:
-  - fiscal
-  - fiscais
-  - dados fiscais
-  - requisito fiscal
-  - regra fiscal
-  CTX_PIX:
-  - pix
-  CTX_NBS:
-  - nbs
-  CTX_DIVERGENCIA:
-  - divergência
-  - divergencia
-  - diferença
-  - diferenca
-  - diferente
-  - incorreto
-  - incorreta
-  - discrepância
-  - discrepancia
-  - acima do esperado
-  - cobrado a mais
-  - a mais
-  - diferença de
-  - diferença entre
-  CTX_INDEVIDA:
-  - indevida
-  - indevido
-  - indevidamente
-  - não deveria
-  - nao deveria
-  - não deveria haver
-  - nao deveria haver
-  - não previsto
-  - nao previsto
-  - não acordado
-  - nao acordado
-  - não haveria
-  - nao haveria
-  - não haveria cobrança
-  - nao haveria cobranca
-  - não deveria ter sido realizada
-  - nao deveria ter sido realizada
-  CTX_NAO_AUTORIZADA:
-  - não autorizada
-  - nao autorizada
-  - não autorizadas
-  - nao autorizadas
-  - não estão sendo autorizadas
-  - nao estao sendo autorizadas
-  - não autenticadas
-  - nao autenticadas
-  - não estão sendo autenticadas
-  - nao estao sendo autenticadas
-  CTX_SEM_REGISTRO:
-  - sem registros
-  - sem registro
-  - não existem registros
-  - nao existem registros
-  - não localizar transações
-  - nao localizar transacoes
-  - não localizar registros
-  - nao localizar registros
-  - não localiza transações
-  - nao localiza transacoes
-  - não justificam as cobranças
-  - nao justificam as cobrancas
-  - não localizou transações
-  - nao localizou transacoes
-  - não localizou registros
-  - nao localizou registros
-  - não foram localizadas transações
-  - nao foram localizadas transacoes
-  - não foram encontrados registros
-  - nao foram encontrados registros
-  CTX_MENSALIDADE:
-  - mensalidade
-  - cobrança mensal
-  - cobranca mensal
-  - taxa mensal
-  CTX_ADESAO:
-  - adesão
-  - adesao
-  - fase de adesão
-  - fase de adesao
-  - processo financeiro ainda em andamento
-  CTX_PAGAMENTO_CONCLUIDO:
-  - paguei
-  - pago
-  - pagamento realizado
-  - pagamento efetuado
-  - quitado
-  - quitada
-  - dívida paga
-  - divida paga
-  CTX_REAJUSTE:
-  - reajuste
-  - data-base
-  - data base
-  - upgrade
-  - aumento de escopo
-  CTX_DESCONTO:
-  - desconto
-  - desconto aplicado
-  - ajuste com desconto
-  CTX_CONGELAMENTO:
-  - congelamento
-  - congelado
-  - suspensão
-  - suspensao
-  - suspender
-  CTX_BLOQUEIO:
-  - bloqueio
-  - restrição
-  - restricao
-  ACAO_REVISAR:
-  - revisar
-  - revisão
-  - revisar novamente
-  - revisitar
-  - revisite
-classificacoes_fallback:
-- id: FALLBACK_NF
-  intencao: Tratamento geral de nota fiscal.
-  causa_padrao: Tratamento Geral de Nota Fiscal
-  classificacao: Cancelamento e Reemissão de Nota Fiscal
-  conceitos:
-  - OBJ_NF
+  CONTESTACAO_COBRANCA:
+    nome: Contestação de cobrança
+    classificacao: Cobrança e Contestação
 
-- id: FALLBACK_COBRANCA
-  intencao: Análise ou tratamento geral de cobrança.
-  causa_padrao: Análise/Contestação de Cobrança
-  classificacao: Cobrança e Contestação
-  conceitos:
-  - OBJ_COBRANCA
+  PENDENTE_RETORNO_COMERCIAL:
+    nome: Pendente retorno comercial
+    classificacao: Contratos, Comercial e Cadastro
 
-- id: FALLBACK_PAGAMENTO
-  intencao: Tratamento geral de boleto, pagamento ou recebimento.
-  causa_padrao: Tratamento Geral de Boleto/Pagamento
-  classificacao: Pagamentos, Boletos e Recebimentos
-  conceitos:
-  - OBJ_BOLETO
-  - OBJ_PAGAMENTO
-  - OBJ_CONTA_RECEBIMENTO
-  - OBJ_CREDITO
+  REENVIO_INFORMACAO:
+    nome: Reenvio de informação
+    classificacao: Atendimento Administrativo e Suporte
 
-- id: FALLBACK_CONTRATOS
-  intencao: Tratamento geral de contrato, comercial ou cadastro.
-  causa_padrao: Tratamento Contratual/Comercial/Cadastral
-  classificacao: Contratos, Comercial e Cadastro
-  conceitos:
-  - OBJ_CONTRATO
-  - OBJ_MID
-  - OBJ_MULTA
+  DUVIDA_ADIANTAMENTO:
+    nome: Dúvida sobre adiantamento
+    classificacao: Faturamento e Obrigações Fiscais
 
-- id: FALLBACK_ADMIN
-  intencao: Atendimento administrativo ou suporte geral.
-  causa_padrao: Atendimento Administrativo/Suporte
-  classificacao: Atendimento Administrativo e Suporte
-  conceitos:
-  - OBJ_SERASA
-  - OBJ_INTEGRACAO
-  - OBJ_PORTAL
+  ATUALIZACAO_CADASTRAL:
+    nome: Atualização cadastral
+    classificacao: Contratos, Comercial e Cadastro
 
-- id: FALLBACK_FATURAMENTO
-  intencao: Tratamento geral de faturamento ou obrigação fiscal.
-  causa_padrao: Faturamento/Obrigação Fiscal
-  classificacao: Faturamento e Obrigações Fiscais
-  conceitos:
-  - OBJ_FATURA
-  - CTX_FISCAL
-  - CTX_NBS
+  COBRANCA_SETUP:
+    nome: Cobrança de setup
+    classificacao: Cobrança e Contestação
 
-regras_conceituais:
-- id: REG_ATENDIMENTO_FINANCEIRO
-  requisitos:
-  - ACAO_ATENDIMENTO
-  - OBJ_ATENDIMENTO_FINANCEIRO
-  escopo: texto
-  intencao: INT_ADM_INFORMACAO
-- id: REG_NF_CANCELAR
-  requisitos:
-  - ACAO_CANCELAR
-  - OBJ_NF
-  intencao: INT_NF_CANCEL_REEMISSAO
-- id: REG_NF_ANULAR
-  requisitos:
-  - ACAO_ANULAR
-  - OBJ_NF
-  intencao: INT_NF_CANCEL_REEMISSAO
-- id: REG_NF_SUBSTITUIR
-  requisitos:
-  - ACAO_SUBSTITUIR
-  - OBJ_NF
-  intencao: INT_NF_CANCEL_REEMISSAO
-- id: REG_NF_REEMITIR
-  requisitos:
-  - ACAO_REEMITIR
-  - OBJ_NF
-  intencao: INT_NF_CANCEL_REEMISSAO
-- id: REG_NF_DATA_EMISSAO
-  requisitos:
-  - ACAO_ALTERAR
-  - OBJ_NF
-  - CTX_DATA_EMISSAO
-  exclusoes:
-  - CTX_VENCIMENTO
-  intencao: INT_NF_DATA_EMISSAO
-- id: REG_NF_VENCIMENTO
-  requisitos:
-  - ACAO_ALTERAR
-  - OBJ_NF
-  - CTX_VENCIMENTO
-  intencao: INT_PAG_VENCIMENTO
-- id: REG_NF_CORRIGIR_CODIGO
-  requisitos:
-  - ACAO_CORRIGIR
-  - OBJ_NF
-  - OBJ_CODIGO
-  intencao: INT_NF_CORRECAO_CODIGO
-- id: REG_NF_ALTERAR_CODIGO
-  requisitos:
-  - ACAO_ALTERAR
-  - OBJ_NF
-  - OBJ_CODIGO
-  intencao: INT_NF_CORRECAO_CODIGO
-- id: REG_NF_REEMISSAO_PO
-  requisitos:
-  - - ACAO_SUBSTITUIR
-    - ACAO_REEMITIR
-  - OBJ_NF
-  - OBJ_PO
-  escopo: local
-  intencao: INT_NF_REEMISSAO_PO
-- id: REG_COB_ESTORNAR
-  requisitos:
-  - ACAO_ESTORNAR
-  - - OBJ_COBRANCA
-    - OBJ_TAXA
-    - OBJ_PAGAMENTO
-  intencao: INT_COB_ESTORNO
-- id: REG_COB_CONTESTAR
-  requisitos:
-  - ACAO_CONTESTAR
-  - OBJ_COBRANCA
-  intencao: INT_COB_CONTESTACAO
-- id: REG_COB_DIVERGENCIA
-  requisitos:
-  - OBJ_COBRANCA
-  - CTX_DIVERGENCIA
-  intencao: INT_COB_CONTESTACAO
-- id: REG_COB_NAO_AUTORIZADA
-  requisitos:
-  - OBJ_COBRANCA
-  - CTX_NAO_AUTORIZADA
-  intencao: INT_COB_CONTESTACAO
-- id: REG_COB_SEM_REGISTRO
-  requisitos:
-  - OBJ_COBRANCA
-  - CTX_SEM_REGISTRO
-  intencao: INT_COB_CONTESTACAO
-- id: REG_COB_INDEVIDA
-  requisitos:
-  - OBJ_COBRANCA
-  - CTX_INDEVIDA
-  intencao: INT_COB_CONTESTACAO
-- id: REG_COB_MENSALIDADE
-  requisitos:
-  - OBJ_COBRANCA
-  - CTX_MENSALIDADE
-  - - ACAO_ENTENDER
-    - ACAO_CONSULTAR
-  escopo: texto
-  intencao: INT_COB_CONTESTACAO
-- id: REG_COB_ADESAO_INDEVIDA
-  requisitos:
-  - OBJ_COBRANCA
-  - CTX_ADESAO
-  - CTX_INDEVIDA
-  escopo: texto
-  intencao: INT_COB_CONTESTACAO
-- id: REG_COB_CORRIGIR
-  requisitos:
-  - ACAO_CORRIGIR
-  - OBJ_COBRANCA
-  intencao: INT_COB_CONTESTACAO
-- id: REG_BOLETO_PRORROGAR
-  requisitos:
-  - ACAO_PRORROGAR
-  - OBJ_BOLETO
-  - CTX_VENCIMENTO
-  intencao: INT_PAG_VENCIMENTO
-- id: REG_BOLETO_ALTERAR_VENCIMENTO
-  requisitos:
-  - ACAO_ALTERAR
-  - OBJ_BOLETO
-  - CTX_VENCIMENTO
-  intencao: INT_PAG_VENCIMENTO
-- id: REG_BOLETO_REENVIAR
-  requisitos:
-  - ACAO_REENVIAR
-  - OBJ_BOLETO
-  intencao: INT_PAG_BOLETO_REENVIO
-- id: REG_BOLETO_CANCELAR
-  requisitos:
-  - ACAO_CANCELAR
-  - OBJ_BOLETO
-  intencao: INT_PAG_BOLETO_CANCELAMENTO
-- id: REG_BOLETO_BAIXAR
-  requisitos:
-  - ACAO_BAIXAR
-  - OBJ_BOLETO
-  intencao: INT_PAG_BOLETO_CANCELAMENTO
-- id: REG_BOLETO_DUPLICIDADE_CONSULTA
-  requisitos:
-  - OBJ_BOLETO
-  - CTX_DUPLICIDADE
-  - - ACAO_CONSULTAR
-    - ACAO_VERIFICAR
-  intencao: INT_COB_DUPLICIDADE
-- id: REG_CONTRATO_CANCELAR
-  requisitos:
-  - ACAO_CANCELAR
-  - OBJ_CONTRATO
-  intencao: INT_CON_CANCELAMENTO
-- id: REG_CONTRATO_CONGELAR
-  requisitos:
-  - ACAO_CONGELAR
-  - OBJ_CONTRATO
-  intencao: INT_CON_CONGELAMENTO
-- id: REG_CONTRATO_RENEGOCIAR
-  requisitos:
-  - ACAO_RENEGOCIAR
-  - OBJ_CONTRATO
-  intencao: INT_CON_CONDICOES
-- id: REG_CONTRATO_REAJUSTE
-  requisitos:
-  - OBJ_CONTRATO
-  - CTX_REAJUSTE
-  - - ACAO_RENEGOCIAR
-    - ACAO_REVISAR
-    - ACAO_VERIFICAR
-  escopo: texto
-  intencao: INT_CON_CONDICOES
-- id: REG_TAXA_REDUZIR
-  requisitos:
-  - ACAO_REDUZIR
-  - OBJ_TAXA
-  intencao: INT_CON_CONDICOES
-- id: REG_MULTA_CONTRATUAL
-  requisitos:
-  - OBJ_MULTA
-  - OBJ_CONTRATO
-  escopo: texto
-  intencao: INT_CON_INFORMACAO
-- id: REG_CONTA_ALTERAR
-  requisitos:
-  - ACAO_ALTERAR
-  - OBJ_CONTA_RECEBIMENTO
-  intencao: INT_PAG_CONTA
-- id: REG_SERASA_PAGO
-  requisitos:
-  - OBJ_SERASA
-  - CTX_PAGAMENTO_CONCLUIDO
-  escopo: texto
-  intencao: INT_ADM_ACESSO
-- id: REG_NF_CORRIGIR_FISCAL
-  requisitos:
-  - ACAO_CORRIGIR
-  - OBJ_NF
-  - CTX_FISCAL
-  intencao: INT_FAT_CORRECAO_PO
-- id: REG_NBS_NF
-  requisitos:
-  - OBJ_NF
-  - CTX_NBS
-  intencao: INT_FAT_REQUISITO
-- id: REG_NF_TRANSACOES_VERIFICAR
-  requisitos:
-  - - ACAO_VERIFICAR
-    - ACAO_CONSULTAR
-  - OBJ_NF
-  - OBJ_TRANSACAO
-  escopo: texto
-  intencao: INT_FAT_DUVIDA
-- id: REG_FATURA_DIVERGENCIA
-  requisitos:
-  - OBJ_FATURA
-  - CTX_DIVERGENCIA
-  escopo: texto
-  intencao: INT_COB_CONTESTACAO
-- id: REG_FATURA_TRANSACOES_DIVERGENCIA
-  requisitos:
-  - OBJ_FATURA
-  - OBJ_TRANSACAO
-  - CTX_DIVERGENCIA
-  escopo: texto
-  intencao: INT_COB_CONTESTACAO
-- id: REG_NF_TRANSACOES_DIVERGENCIA
-  requisitos:
-  - OBJ_NF
-  - OBJ_TRANSACAO
-  - CTX_DIVERGENCIA
-  escopo: texto
-  intencao: INT_COB_CONTESTACAO
-- id: REG_CONTRATO_DESCONTO_REAJUSTE
-  requisitos:
-  - OBJ_CONTRATO
-  - CTX_DESCONTO
-  - CTX_REAJUSTE
-  escopo: texto
-  intencao: INT_CON_CONDICOES
-- id: REG_CONTRATO_DESCONTO
-  requisitos:
-  - OBJ_CONTRATO
-  - CTX_DESCONTO
-  escopo: texto
-  intencao: INT_CON_CONDICOES
+  ALTERACAO_DADOS_FISCAIS:
+    nome: Alteração de dados fiscais
+    classificacao: Faturamento e Obrigações Fiscais
+
+  ESTORNO_COBRANCA:
+    nome: Estorno de cobrança
+    classificacao: Cobrança e Contestação
+
+  ALTERACAO_VENCIMENTO:
+    nome: Alteração de vencimento
+    classificacao: Pagamentos, Boletos e Recebimentos
+
+  CONSULTA_FINANCEIRA:
+    nome: Consulta financeira
+    classificacao: Pagamentos, Boletos e Recebimentos
+
+  CONSULTA_NOTA_FISCAL:
+    nome: Consulta de nota fiscal
+    classificacao: Faturamento e Obrigações Fiscais
+
+  REENVIO_BOLETO:
+    nome: Reenvio de boleto
+    classificacao: Pagamentos, Boletos e Recebimentos
+
+  INCLUSAO_PO_NF:
+    nome: Inclusão de PO em NF
+    classificacao: Faturamento e Obrigações Fiscais
+
+  INFORMACOES_GERAIS:
+    nome: Informações gerais
+    classificacao: Atendimento Administrativo e Suporte
+
+  TROCA_CONTA_DEPOSITO:
+    nome: Troca de conta para depósito
+    classificacao: Pagamentos, Boletos e Recebimentos
+
+  ENCAMINHAMENTO_COMERCIAL:
+    nome: Encaminhamento comercial
+    classificacao: Atendimento Administrativo e Suporte
+
+
+aliases_causas:
+  Ajuste de cobrança / faturamento: CONTESTACAO_COBRANCA
+  Dúvidas sobre cobrança: CONTESTACAO_COBRANCA
+  Dúvida cobrança: CONTESTACAO_COBRANCA
+  Conciliação / divergência simples: CONTESTACAO_COBRANCA
+  Contestação de cobrança: CONTESTACAO_COBRANCA
+
+  Cancelamento de NF: CANCELAMENTO_NF
+
+  Pendente Retorno Comercial: PENDENTE_RETORNO_COMERCIAL
+  Pendente retorno comercial: PENDENTE_RETORNO_COMERCIAL
+
+  Reenvio de informação: REENVIO_INFORMACAO
+
+  Dúvida sobre adiantamento: DUVIDA_ADIANTAMENTO
+
+  Atualização cadastral: ATUALIZACAO_CADASTRAL
+  Alteração cadastral: ATUALIZACAO_CADASTRAL
+  Atualização cadastral (email): ATUALIZACAO_CADASTRAL
+
+  Cobrança de Setup: COBRANCA_SETUP
+  Cobrança de setup: COBRANCA_SETUP
+
+  Alteração de dados fiscais: ALTERACAO_DADOS_FISCAIS
+
+  Estorno de cobrança: ESTORNO_COBRANCA
+
+  Alteração de vencimento: ALTERACAO_VENCIMENTO
+
+  Consulta financeira: CONSULTA_FINANCEIRA
+
+  Confirmação Dados Fatura: CONSULTA_NOTA_FISCAL
+  Consulta de nf: CONSULTA_NOTA_FISCAL
+  Consulta de nota fiscal: CONSULTA_NOTA_FISCAL
+
+  Reenvio de boleto: REENVIO_BOLETO
+
+  Inclusão de PO NF: INCLUSAO_PO_NF
+  Inclusão de PO em NF: INCLUSAO_PO_NF
+
+  Informações geral: INFORMACOES_GERAIS
+  Informações gerais: INFORMACOES_GERAIS
+
+  Troca de conta para depósito: TROCA_CONTA_DEPOSITO
+
+  Cliente reclamando da integração do produto, direcionei para a fila do comercial: ENCAMINHAMENTO_COMERCIAL
+  Encaminhamento comercial: ENCAMINHAMENTO_COMERCIAL
+
+
+vocabulario:
+  acoes:
+    CANCELAR:
+      - cancelar
+      - cancelamento
+      - cancele
+      - cancelem
+      - cancelada
+      - canceladas
+      - anular
+      - anulação
+
+    SUBSTITUIR:
+      - substituir
+      - substituição
+      - substituída
+      - substituídas
+      - trocar
+
+    REEMITIR:
+      - reemitir
+      - reemissão
+      - emitir novamente
+      - emitir nova
+      - nova emissão
+
+    BAIXAR:
+      - baixar
+      - baixa
+      - dar baixa
+      - retirar do banco
+      - excluir do dda
+      - excluir boleto
+
+    CONTESTAR:
+      - contestar
+      - contestação
+      - questionar
+      - não reconhecer
+      - não reconheço
+      - não reconhecemos
+
+    CONSULTAR:
+      - consultar
+      - verificar
+      - conferir
+      - confirmar
+      - entender
+      - esclarecer
+
+  objetos:
+    NOTA_FISCAL:
+      - nf
+      - nfs
+      - nf-e
+      - nfe
+      - nfs-e
+      - nfse
+      - nota fiscal
+      - notas fiscais
+
+    BOLETO:
+      - boleto
+      - boletos
+
+    COBRANCA:
+      - cobrança
+      - cobranças
+      - valor cobrado
+      - valores cobrados
+      - faturamento
+      - fatura
+      - faturas
+
+    CONTRATO:
+      - contrato
+      - contratos
+      - serviço contratado
+      - produto contratado
+
+    SETUP:
+      - setup
+      - taxa de setup
+
+  contextos:
+    DUPLICIDADE:
+      - duplicidade
+      - duplicado
+      - duplicada
+      - duplicados
+      - duplicadas
+      - duas vezes
+      - dois boletos
+      - duas notas
+      - mesmo período e valor
+
+    DIVERGENCIA:
+      - divergência
+      - diferença
+      - incorreto
+      - incorreta
+      - indevido
+      - indevida
+      - acima do esperado
+      - cobrado a mais
+      - não confere
+
+    SEM_CONTRATO:
+      - sem contrato
+      - contrato não assinado
+      - não possui contrato
+      - não assinou contrato
+      - sem vínculo
+
+    APOS_CANCELAMENTO:
+      - após cancelamento
+      - depois do cancelamento
+      - contrato cancelado
+      - serviço cancelado
+
+  canais:
+    DDA:
+      - dda
+      - débito direto autorizado
+
+    BANCO:
+      - banco
+      - conta bancária
+      - retirar do banco
+
 intencoes:
 - id: INT_NF_CANCEL_REEMISSAO
   intencao: Cancelar, substituir ou reemitir nota fiscal.
   causa_padrao: Cancelamento/Reemissão de Nota Fiscal
   classificacao: Cancelamento e Reemissão de Nota Fiscal
+  evidencias_historicas: 143
+
+  assinaturas:
+    - acoes_um_de:
+        - CANCELAR
+        - SUBSTITUIR
+        - REEMITIR
+      objetos_todos:
+        - NOTA_FISCAL
+
   padroes:
   - cancelar nf
-  - cancelar a nf
   - cancelamento de nf
   - cancelamento da nf
-  - cancelamento de nota fiscal
-  - cancelamento da nota fiscal
   - cancelar notas fiscais
   - cancelamento das notas fiscais
-  - cancelamento das nfs
-  - cancelamento parcial das nfs
-  - cancelar todas notas
-  - cancelamento de todas as notas
-  - cancelar todas as notas
   - solicito cancelamento das notas
   - favor cancelar notas
-  - cancelem essas nf
   - substituição da nf
-  - substituição das nfs
   - substituir nf
   - reemissão de nf
   - reemitir nf
@@ -757,97 +289,209 @@ intencoes:
   - emitir nova nf
   - cancelar e emitir
   - emitir uma nova nf
-  - cancelar a nota
-  - cancelar as nf
   - cancelamento dessa nf
   - nf + ser canceladas
-  - substituição de nf
   - substituição de todas as nf
-  - cancelar as seguintes notas fiscais
-  - cancele todas as notas
-  - cancele todas as notas dos clientes
-  - cancelamento + das nf
-  - substituição nf
+  - cancelar nota
+  - cancelar notas
+  - cancelar todas as notas
+  - cancelar as notas
+  - cancelar todas as nf
+  - cancelar as nfs
+  - cancelamento de nota
+  - cancelamento de notas
+  - cancelamento das notas
+  - cancelamento total das notas
+  - cancelamento das notas emitidas
+  - cancelamento de todas as notas
+  - favor cancelar a nota
+  - favor cancelar as notas
+  - favor cancelar todas as notas
+  - seguir com o cancelamento da nota
+  - seguir com o cancelamento das notas
+  - realizar o cancelamento da nota
+  - realizar o cancelamento das notas
+  - nota precisa ser cancelada
+  - notas precisam ser canceladas
+  - baixar a nf
+  - baixar a nota
+  - baixa da nf
+  - baixa da nota
+  - substituição de nota
+  - substituição de notas
+  - substituição das notas
+  - substituição das nfs
+  - substituir a nota
+  - substituir as notas
+  - substituir as nfs
+  - notas a serem substituídas
+  - notas devem ser substituídas
+  - reemitir as notas
+  - reemitir as nfs
+  - reemissão das notas
+  - emissão de nova nota
+  - gerar uma nova nota
+  - gerar uma nova nf
+  - cancelar a nf e emitir uma nova
+  - cancelar a nota e emitir uma nova
+  - cancelar e reemitir
+  - cancelar e emitir uma nova nota
+  - cancelar e emitir nova nota
+  - emitida para o cnpj incorreto
+  - emitidas para o cnpj incorreto
+  - emitir no cnpj correto
+  - emitir para o cnpj correto
+  - notas emitidas no cnpj antigo
+  - nf emitida no cnpj antigo
+  - cessão de cnpj
+  - cessão contratual + cancelar
+  - notas emitidas incorretamente
+  - nota emitida incorretamente
+  - corrigir a nota fiscal
+  - correção da nota fiscal
+  - correção de nota fiscal
+  - correção de nf
+  - nota emitida de forma duplicada + cancelar
+  - nf emitida de forma duplicada + cancelar
+  - cancelamento parcial das notas
+  - cancelamento parcial das nfs
+  - cancelar + nf
+  - cancelamento + nf
+  - cancelada + nf
+  - canceladas + nf
+  - cancele + nf
+  - cancelem + nf
+
+  - substituir + nf
+  - substituição + nf
+  - substituida + nf
+  - substituidas + nf
+  - substituída + nf
+  - substituídas + nf
+
+  - reemitir + nf
+  - reemissão + nf
+  - emitir novamente + nf
+  - emitir nova + nf
+  - nova emissão + nf
+
+  - cancelar + emitir nova
+  - cancelar + reemitir
+  - cancelamento + reemissãO
+
+  - emissão indevida + nf
+  - emitida incorretamente + nf
+  - emitidas incorretamente + nf
+
+  - cnpj incorreto + nf
+  - cnpj errado + nf
+  - cnpj antigo + nf
+  - cnpj correto + nf
+
+
   exclusoes:
   - cancelar boleto
   - cancelamento de boleto
-  aliases_historicos:
-  - Cancelamento de NF / reemissão
-  - Cancelamento de Nota Fiscal
-  - Cancelamento de NF
-  - Cancelamento de Nota Fiscal / Reemissão
-  - Cancelamento de nf
-  - cancelamento de nf
-  - Cancelamento de NF / Reemissão (Mudança CNPJ)
-  - Cancelamento de NF / Reemissão
-  - Cancelamento de NF / Reemissão (Incluir PO)
-  - Cancelamento de Nota fiscal
-  - CANCELAMENTO DE NF
-  - Cessão contratual
-  - DÚVIDA SOBRE A COBRANÇA DO MINIMO MENSAL NO PERÍODO DE INTEGRAÇÃO
-  evidencias_historicas: 143
 - id: INT_NF_DATA_EMISSAO
   intencao: Alterar a data de emissão da nota fiscal.
   causa_padrao: Alteração de Data de Emissão da NF
   classificacao: Cancelamento e Reemissão de Nota Fiscal
+  evidencias_historicas: 4
   padroes:
   - alterar data de emissão da nf
   - mudar data de emissão da nf
   - nf emitida no mês errado
   - emitir nf no mês correto
   - emissão no final do mês
-  - emitidas no final do mês
-  - emissão no final
   - alteração na data de emissão
   - alteração da data de emissão
-  - alterar a data de emissão
-  - mudar a data de emissão
-  aliases_historicos:
-  - Alterar data de emissão da NF
-  evidencias_historicas: 4
+  - alterar data de emissão
+  - alterar a data de emissão da nota
+  - mudar a data de emissão da nota
+  - data de emissão no mês seguinte
+  - emitir no primeiro dia útil
+  - emissão no primeiro dia útil
+  - emitir até o dia 25
+  - notas emitidas até o dia 25
+  - notas emitidas no final do mês
+  - nota emitida no final do mês
+  - não aceita notas emitidas após o dia 25
+  - não aceita emissão entre os dias 25 e 31
+  - prazo limite de recebimento até o dia 25
+  - data de corte + emissão
+  - ajustar data de faturamento
 - id: INT_NF_CORRECAO_CODIGO
   intencao: Corrigir código incorreto registrado na nota fiscal.
   causa_padrao: Correção de Código da Nota Fiscal
   classificacao: Cancelamento e Reemissão de Nota Fiscal
+  evidencias_historicas: 1
   padroes:
   - corrigir código da nf
   - código da nf incorreto
   - mudar código da nf
   - código diferente
-  aliases_historicos:
-  - Mudança de código NF
-  evidencias_historicas: 1
+  - corrigir código de serviço
+  - alterar código de serviço
+  - código de serviço incorreto
+  - código de serviço errado
+  - corrigir o código da nota
 - id: INT_NF_REEMISSAO_PO
-  intencao: Substituir ou reemitir NF com PO quando a nova emissão é solicitada.
+  intencao: Substituir ou reemitir NF com PO.
   causa_padrao: Reemissão de NF com PO
   classificacao: Cancelamento e Reemissão de Nota Fiscal
+  evidencias_historicas: 4
   padroes:
   - substituição de nf + po
-  - substituição das nfs + po
   - substituir nf + po
   - reemissão de nf + po
   - reemitir nf + po
-  - cancelar substituir nf com po
   - cancelar e substituir nf com po
   - substituir nf com po
-  aliases_historicos:
-  - Reemissão de NF (incluir PO)
-  evidencias_historicas: 4
+  - substituição das notas + po
+  - substituir notas + po
+  - substituir nfs + po
+  - inserir po na nf
+  - incluir po na nf
+  - incluir po nas notas
+  - inclusão da po nas nf
+  - inclusão de po nf
+  - constar po no corpo da nota
+  - conste po no corpo da nota
+  - po no corpo da nota
+  - substituir a nota + po
+  - substituir as notas + pedido
+  - inserir o pedido na nota
+  - inserir o pedido nas notas
+  - número da po para constar na nota
+  - pedido para constar na nota
+  - substituição das nfs + pedido
 - id: INT_COB_CONTESTACAO
-  intencao: Contestar divergência, valor ou critério de cobrança/faturamento.
+  intencao: Contestar divergência, valor ou critério de cobrança.
   causa_padrao: Contestação/Divergência de Cobrança
   classificacao: Cobrança e Contestação
+  causa_id: CONTESTACAO_COBRANCA
+  evidencias_historicas: 73
+
+  assinaturas:
+    - acoes_um_de:
+        - CONTESTAR
+      objetos_todos:
+        - COBRANCA
+
+    - objetos_todos:
+        - COBRANCA
+      contextos_um_de:
+        - DIVERGENCIA
+        - SEM_CONTRATO
+        - APOS_CANCELAMENTO
+
   padroes:
   - contestar cobrança
   - contestação de cobrança
   - divergência na cobrança
   - dúvida sobre cobrança
-  - dúvida sobre a cobrança
-  - divergência de cobrança
   - valor cobrado incorreto
   - valor cobrado diferente
-  - valor da cobrança diferente
-  - valor mensal diferente
   - cobrado apenas pelo mínimo
   - cobrança indevida
   - cobrado a mais
@@ -857,58 +501,119 @@ intencoes:
   - ajuste de cobrança
   - ajuste de faturamento
   - reajuste aplicado incorretamente
-  - reajuste aplicado antes do prazo
-  - cobrança pelo mínimo incorreta
   - faturado incorretamente
-  - desconto retroativo na cobrança
   - cobranças indevidas
-  - mínimo mensal + indevidas
   - valores indevidos
   - cobrança incorreta
   - divergência de valores
-  - divergência entre o valor
   - volumetria cobrada
   - volume cobrado
   - divergência + transações
   - valor da nf + discrepante
   - entender o motivo do aumento
-  - mais que dobrado
-  - constatei diferenças
   - não conseguimos localizar + transações
   - esclarecer ao que se refere a cobrança
-  - transações que estamos cobrando
   - valor está incorreto
-  - divergência de registros
   - diferença de registros
-  - de qual estabelecimento são essas transações
-  - quantidade de transações
   - divergência de tarifa
   - cobrança acima do esperado
-  - tentativas de fraude foram cobradas
-  - cobranças em aberto
-  - cobrança alta
-  - explicar estas cobranças
-  - motivo dos ajustes
   - não reconhecemos essas cobranças
   - cobranças de transações não autorizadas
-  - transações não autorizadas foram cobradas
   - cobrança sem mensalidade acordada
   - cobrança de antifraude sem registros
   - não deveria haver essa cobrança
   - cobrança acima do contratado
-  aliases_historicos:
-  - Contestação de cobrança
-  - Dúvidas sobre cobrança
-  - Dúvida cobrança
-  - Ajuste de cobrança / faturamento
-  - Cobrança retroativa
-  - Conciliação / divergência simples
-  - Confirmar cobrança Split
-  evidencias_historicas: 73
+  - cobrança diferente do contrato
+  - valor diferente do contrato
+  - divergência entre valor e contrato
+  - divergência entre o valor e o contrato
+  - divergência entre boleto e nf
+  - valor do boleto diferente da nf
+  - quantidade de transações incorreta
+  - quantidade de transações incorretas
+  - diferença na quantidade de transações
+  - transações cobradas incorretamente
+  - conferir transações cobradas
+  - detalhamento das transações cobradas
+  - detalhamento transacional
+  - entender essa cobrança
+  - entender estas cobranças
+  - entender o motivo da cobrança
+  - do que se trata essa cobrança
+  - do que se trata esta cobrança
+  - qual a origem da cobrança
+  - cobrança sem contrato ativo
+  - cobrança após cancelamento
+  - cobrança depois do cancelamento
+  - mensalidade indevida
+  - cobrança de mensalidade indevida
+  - reajuste aplicado errado
+  - reajuste aplicado incorreto
+  - índice de reajuste incorreto
+  - valor aumentou
+  - valor mais que dobrou
+  - cobrança de serviço não contratado
+  - cobrança referente a produto não contratado
+  - cobrança sem utilização
+  - não reconheço essa cobrança
+  - não reconhecemos a cobrança
+  - não existe contrato
+  - não possui contrato ativo
+  - nota indevida
+  - nf indevida
+  - emissão indevida
+  - cobranças em aberto + entender
+  - cobrança de multa indevida
+  - multa contratual indevida
+  - taxas divergentes
+  - tarifas divergentes
+  - divergência no reajuste
+  - valor acordado em contrato
+  - valor correto da nota
+  - fatura com valor diferente
+  - nota fiscal errada
+  - nota com transações incorretas
+  - relatório + nf + diferença
+  - relatório + nf + divergência
+  - não localizar transações
+  - sem registros de antifraude
+  - não justificam as cobranças
+  - contestar + cobrança
+  - contestação + cobrança
+  - divergência + cobrança
+  - cobrança + indevida
+  - cobrança + incorreta
+  - valor + divergente
+  - valor + incorreto
+  - cobrado + a mais
+  - cobrança + contrato
+  - cobrança + não contratado
+  - cobrança + sem contrato
+  - transações + cobradas
+  - quantidade + transações
+  - reajuste + incorreto
+  - reajuste + divergência
+  - boleto + nf + divergência
+  - cobrança + indevida
+  - cobrança + incorreta
 - id: INT_COB_DUPLICIDADE
   intencao: Corrigir cobrança ou pagamento em duplicidade.
   causa_padrao: Duplicidade de Cobrança
   classificacao: Cobrança e Contestação
+  evidencias_historicas: 3
+
+  assinaturas:
+    - objetos_um_de:
+        - COBRANCA
+        - NOTA_FISCAL
+      contextos_um_de:
+        - DUPLICIDADE
+      excluir_objetos:
+        - BOLETO
+      excluir_canais:
+        - DDA
+        - BANCO
+
   padroes:
   - duplicidade de cobrança
   - cobrança em duplicidade
@@ -916,20 +621,43 @@ intencoes:
   - cobrança duplicada
   - duplicidade de nf de antifraude
   - cobrada em duplicidade
-  - cobradas em duplicidade
   - cobranças duplicadas
   - valores em duplicidade
   - notas cobrando valores em duplicidade
-  - setup foi cobrado errado duplicado
+  - notas em duplicidade
+  - nota em duplicidade
+  - notas fiscais duplicadas
+  - nota fiscal duplicada
+  - duas notas fiscais + mesmo valor
+  - duas notas + mesmo valor
+  - mesmo serviço + mesmo período + mesmo valor
+  - nf paga duplicada
+  - pagamento em duplicidade
+  - cobrança duplicada de aluguel
   - cobrado em duplicidade pelo aluguel
-  aliases_historicos:
-  - Duplicidade De Cobrança
-  - Duplicidade nf de antifraude
-  evidencias_historicas: 3
+  - notas cobradas em duplicidade
+  - boleto e nf duplicados
+  - cobrança + duplicada
+  - cobrança + duplicidade
+  - valor + duplicado
+  - cobrado + duas vezes
+  - nf + duplicidade
+  - notas + duplicidade
+  - mesmo serviço + mesmo período
 - id: INT_COB_SETUP
   intencao: Questionar ou corrigir cobrança de setup, taxa ou chave de loja.
   causa_padrao: Cobrança de Setup/Taxa
   classificacao: Cobrança e Contestação
+  evidencias_historicas: 4
+
+  assinaturas:
+    - objetos_todos:
+        - COBRANCA
+        - SETUP
+      contextos_um_de:
+        - DIVERGENCIA
+        - DUPLICIDADE
+
   padroes:
   - cobrança de setup
   - setup cobrado
@@ -937,44 +665,56 @@ intencoes:
   - cobrança de chaves de loja
   - cobrança de chave de loja
   - chaves de loja + custo
-  - geração da cobrança de um setup
   - geração de cobrança de setup
   - gerar cobrança de setup
   - nova chave na solução de split de pagamentos
-  aliases_historicos:
-  - Cobrança de Setup
-  - Cobrança Taxa Setup
-  - Cobrança de Chaves de Loja
-  - Cobrança Setup
-  evidencias_historicas: 4
+  - setup cobrado incorretamente
+  - setup cobrado em duplicidade
+  - cobrança de ativação de loja
+  - chave de ativação de nova loja
+  - cobrança + setup
+  - setup + cobrado
+  - setup + incorreto
+  - setup + duplicidade
+  - contestar + setup
+  - taxa + setup
 - id: INT_COB_ESTORNO
   intencao: Solicitar estorno ou devolução de cobrança.
   causa_padrao: Estorno/Devolução de Cobrança
   classificacao: Cobrança e Contestação
+  evidencias_historicas: 2
   padroes:
   - solicitar estorno
   - estorno de cobrança
   - devolução financeira
   - devolver valor pago
-  aliases_historicos:
-  - Estorno / Devolução financeira
-  - Estorno de cobrança
-  evidencias_historicas: 2
+  - realizar o estorno
+  - estornar o valor
+  - estorno do valor pago
+  - reembolso da cobrança
+  - solicitação de reembolso
+  - como iremos estornar
 - id: INT_COB_INADIMPLENCIA
   intencao: Negociar dívida ou inadimplência.
   causa_padrao: Negociação de Inadimplência
   classificacao: Cobrança e Contestação
+  evidencias_historicas: 1
   padroes:
   - negociação da inadimplência
   - negociar débito
   - parcelamento da dívida
-  aliases_historicos:
-  - Negociação Inadimplência
-  evidencias_historicas: 1
+  - negociar dívida
+  - negociação de débito
+  - negociar pendência
+  - proposta de parcelamento
+  - parcelamento do débito
+  - regularizar débito no serasa
+  - proposta para negociação do débito
 - id: INT_PAG_BOLETO_REENVIO
   intencao: Solicitar segunda via, reenvio ou reemissão de boleto.
   causa_padrao: Reenvio/Reemissão de Boleto
   classificacao: Pagamentos, Boletos e Recebimentos
+  evidencias_historicas: 13
   padroes:
   - reenvio de boleto
   - reenviar boleto
@@ -987,85 +727,152 @@ intencoes:
   - enviar boleto atualizado
   - gerar novo boleto
   - preciso do boleto
-  aliases_historicos:
-  - Reenvio de boleto
-  - REENVIO DE BOLETO
-  - Reemissão de boleto
-  - Solicitação de Boleto
-  evidencias_historicas: 13
+  - boleto atualizado
+  - solicitar boleto atualizado
+  - solicito boleto atualizado
+  - preciso do boleto atualizado
+  - enviar boleto sem juros
+  - enviar boleto sem multa
+  - boleto vencido
+  - boleto não recebido
+  - não recebi o boleto
+  - não recebemos o boleto
+  - novo boleto
+  - reenvio dos boletos
+  - boletos pendentes atualizados
+  - enviar os boletos
+  - encaminhar os boletos
+  - link do boleto inexistente
+  - não conseguimos atualizar o boleto
+  - segunda via de boleto
+  - reenviar + boleto
+  - reenvio + boleto
+  - reemissão + boleto
+  - segunda via + boleto
+  - não recebi + boleto
+  - não recebemos + boleto
+  - boleto + atualizado
+  - boleto + vencido
+  - novo + boleto
+  - boleto vencido + reenviar
+  - boleto vencido + atualizar
+  - boleto vencido + segunda via
+  - boleto vencido + sem juros
+  - boleto vencido + sem multa
 - id: INT_PAG_VENCIMENTO
-  intencao: Alterar ou prorrogar o vencimento/prazo de pagamento do boleto.
+  intencao: Alterar ou prorrogar vencimento ou prazo de pagamento.
   causa_padrao: Alteração/Prorrogação de Vencimento
   classificacao: Pagamentos, Boletos e Recebimentos
+  evidencias_historicas: 23
   padroes:
   - prorrogar boleto
   - prorrogação do boleto
   - alterar vencimento do boleto
   - alterar data de vencimento do boleto
   - alterar a data de vencimento
-  - data de emissão das nfs no mesmo mês que vencimento
-  - data de emissão das nfs para o mesmo mês do vencimento
   - nova data de vencimento
   - aumentar prazo para pagamento
   - alteração de prazo de pagamento
-  - aumento no prazo para pagamento
   - aumento no prazo de pagamento
-  - aumentar prazo de pagamento
-  - atualizado para a data de vencimento
   - vencimento corrigido
   - prorrogação da nf
-  - prorrogação de boleto
   - data de vencimento atualizada
-  - ajuste no boleto para pagamento hoje sem juros
   - boleto com data de vencimento atualizada
   - calendário de pagamentos
-  - emitidos para pagamento nas datas
   - vencimento sempre no mês seguinte
-  - boletos passem a ser emitidos até o dia
   - prorrogar + vencimento
+  - alterar data de pagamento
+  - alterar o vencimento
+  - mudar o vencimento
+  - mudança nas datas de vencimento
+  - vencimento prorrogado
+  - prorrogar vencimento
+  - prorrogação do vencimento
+  - nova data para pagamento
+  - prazo de 30 dias
+  - prazo de 45 dias
+  - prazo de 60 dias
+  - pagamento nas datas
+  - vencimento para o dia
+  - vencimento atualizado para
+  - emitir para pagamento
+  - isenção de juros e multa
+  - sem juros e multas
+  - sem multas ou juros
+  - aumento no prazo para pagamento
+  - aumentar o prazo de pagamento
+  - prazo após a emissão da nf
+  - boletos com vencimento prorrogado
+  - alterar + vencimento
+  - alteração + vencimento
+  - mudar + vencimento
+  - mudança + vencimento
+  - prorrogar + vencimento
+  - prorrogação + vencimento
+  - prazo + pagamento
+  - nova data + pagamento
+  - vencimento + 30 dias
+  - vencimento + 45 dias
+  - vencimento + 60 dias
   exclusoes:
   - alterar data de emissão da nf
   - mudar data de emissão da nf
-  - alterar a data de emissão
-  - mudar a data de emissão
   - alteração na data de emissão
-  - alteração da data de emissão
-  aliases_historicos:
-  - Alteração de vencimento / prorrogação
-  - Alteração de vencimento / Prorrogação / Reenvio de boleto
-  - Prorrogação de Boleto
-  - Alteração de vencimento
-  - Prorrogação / Reenvio de boleto
-  - Alteração de prazo de pagamento
-  evidencias_historicas: 23
 - id: INT_PAG_BOLETO_CANCELAMENTO
   intencao: Cancelar boleto ou interromper cobranças futuras ligadas a boleto.
   causa_padrao: Cancelamento de Boleto
   classificacao: Pagamentos, Boletos e Recebimentos
+  evidencias_historicas: 2
+
+  assinaturas:
+    - objetos_todos:
+        - BOLETO
+      contextos_um_de:
+        - DUPLICIDADE
+      canais_um_de:
+        - DDA
+        - BANCO
+
+    - acoes_um_de:
+        - BAIXAR
+        - CANCELAR
+      objetos_todos:
+        - BOLETO
+
   padroes:
   - cancelar boleto
   - cancelamento de boleto
   - cancelar boletos
   - cancelamento de todos os boletos
   - cancelar nf + boleto
-  - cancelamento da nf + boleto
   - boleto duplicado + retirar do banco
   - boleto duplicado + excluir
   - dois boletos + baixar um
   - cobrança duplicada + boleto
-  - cobrança duplicada + banco
-  - 2 boletos + outro seja excluído
-  - dois boletos + excluir o outro
-  - dois boletos + excluir o duplicado
   - outro boleto seja excluído
-  aliases_historicos:
-  - Cancelamento de boletos
-  evidencias_historicas: 2
+  - baixar boleto
+  - baixa do boleto
+  - dar baixa no boleto
+  - cancelar o boleto
+  - cancelar todos os boletos
+  - excluir boleto duplicado
+  - retirar boleto do dda
+  - dois boletos no dda + baixar
+  - boleto duplicado + baixa
+  - anular boleto
+  - boleto + duplicado
+  - boleto + duplicidade
+  - dois boletos
+  - duplicidade + dda
+  - boleto + retirar do banco
+  - boleto + excluir
+  - boleto + baixar
+  - boleto + dar baixa
 - id: INT_PAG_FINANCEIRO
-  intencao: Consultar pagamentos, débitos, pendências ou recebíveis sem contestar
-    o valor.
+  intencao: Consultar pagamentos, débitos, pendências ou recebíveis.
   causa_padrao: Consulta/Regularização Financeira
   classificacao: Pagamentos, Boletos e Recebimentos
+  evidencias_historicas: 20
   padroes:
   - consulta de débitos
   - consulta financeira
@@ -1079,23 +886,27 @@ intencoes:
   - qual o prazo cadastrado
   - bloqueio por inadimplência
   - levantamento de todos os pagamentos
+  - débitos pendentes
+  - pendências de pagamento
+  - pendências financeiras
+  - todas as pendências financeiras
+  - valores em aberto
+  - pagamentos em aberto
+  - boletos pendentes
+  - regularização financeira
+  - erro no processamento do repasse
+  - transação de saque
+  - repasse do seller
+  - informações de pagamento
+  - contato para tratar pagamento
   exclusoes:
   - valor cobrado incorreto
   - contestar cobrança
-  aliases_historicos:
-  - Informações cobrança
-  - Consulta de débitos
-  - Consulta financeira
-  - Informação sobre forma de pagamento
-  - Regularização Pendências Financeiras
-  - Falha do repasse seller
-  - Consulta prazo pagamento
-  - Informações sobre pagamento
-  evidencias_historicas: 20
 - id: INT_PAG_CONTA
-  intencao: Alterar conta/domicílio ou forma de recebimento.
+  intencao: Alterar conta, domicílio ou forma de recebimento.
   causa_padrao: Alteração de Conta/Forma de Recebimento
   classificacao: Pagamentos, Boletos e Recebimentos
+  evidencias_historicas: 6
   padroes:
   - troca de conta para depósito
   - mudança de conta de recebimento
@@ -1105,27 +916,36 @@ intencoes:
   - alterar forma de pagamento
   - trocar a conta bancária
   - mudando a forma de pagamento
-  aliases_historicos:
-  - Mudança conta recebimento
-  - Troca de conta para depósito
-  - Informação conta para depósito
-  evidencias_historicas: 6
+  - mudança do domicílio bancário
+  - mudança de domicílio bancário
+  - troca de credencial bancária
+  - troca das credenciais bancárias
+  - alterar credenciais bancárias
+  - conta para recebíveis
+  - conta para depósito dos recebíveis
+  - mudança da conta de pagamento
 - id: INT_PAG_NF_VINCULADA
-  intencao: Solicitar NF associada a boleto em aberto para realizar o pagamento.
+  intencao: Solicitar NF associada a boleto em aberto.
   causa_padrao: NF Vinculada a Boleto em Aberto
   classificacao: Pagamentos, Boletos e Recebimentos
+  evidencias_historicas: 1
   padroes:
   - boleto em aberto + não recebemos a nf
   - boleto em aberto + não recebi a nf
-  - boleto para pagamento + sem nota fiscal
+  - boleto para pagamento + sem nf
+  - não recebemos a nf referente ao boleto
+  - boleto em aberto + não recebemos nenhuma nota
+  - boleto em aberto + sem nota
+  - boleto em aberto + sem nf
+  - boleto vencido + não recebi a nf
+  - boleto para pagamento + não recebemos a nota
   - não recebemos a nota referente ao boleto
-  aliases_historicos:
-  - Solicitação de nota fiscal
-  evidencias_historicas: 1
+  - não recebemos nf referente ao boleto
 - id: INT_CON_CANCELAMENTO
   intencao: Cancelar contrato, serviço ou produto contratado.
   causa_padrao: Cancelamento de Contrato/Produto
   classificacao: Contratos, Comercial e Cadastro
+  evidencias_historicas: 9
   padroes:
   - cancelar contrato
   - cancelar o contrato
@@ -1136,30 +956,74 @@ intencoes:
   - encerramento das atividades + contrato
   - cancelar produto
   - cancelar produto contratado
-  - solicito o cancelamento do mesmo + contrato
   - cancelamento do serviço
   - cancelamento do contrato
-  aliases_historicos:
-  - Cancelamento de contrato
-  - Cancelamento contrato (produto) / NF
-  evidencias_historicas: 9
+  - cancelamento total dos serviços
+  - cancelar todos os serviços
+  - cancelamento dos serviços
+  - cancelar apenas esse produto
+  - cancelamento parcial do contrato
+  - cancelamento total do contrato
+  - serviço foi cancelado
+  - contrato foi encerrado
+  - desativar no billing
+  - cliente solicitou o cancelamento
+  - cancelamento sem multa
+  - cancelamento integral do contrato
+  - cancelamento do produto
+  - cancelar o produto
 - id: INT_CON_CONGELAMENTO
-  intencao: Congelar ou suspender temporariamente contrato/serviço.
+  intencao: Congelar ou suspender temporariamente contrato ou serviço.
   causa_padrao: Congelamento de Contrato
   classificacao: Contratos, Comercial e Cadastro
+  evidencias_historicas: 10
   padroes:
   - congelar contrato
   - congelar o contrato
   - congelamento de contrato
   - suspender contrato temporariamente
-  aliases_historicos:
-  - Congelamento de contrato
-  evidencias_historicas: 10
+  - congelamento da cobrança
+  - congelar cobrança
+  - congelamento de cobranças
+  - congelamento dos boletos
+  - congelamento dos serviços
+  - não emitir notas durante
+  - não emitir novas cobranças
+  - suspender cobranças
+  - congelamento do antifraude
+  - congelamento por 90 dias
+  - congelamento previamente acordado
+  - período de congelamento
+  - congelar + contrato
+  - congelamento + contrato
+  - suspender + contrato
+  - suspensão + contrato
+  - congelar + cobrança
+  - congelamento + cobrança
+  - suspender + cobrança
+  - não emitir + nf
+  - não emitir + nota
+  - não emitir + nota fiscal
 - id: INT_CON_CADASTRO
   intencao: Atualizar dados cadastrais, e-mail ou telefone.
   causa_padrao: Atualização Cadastral
   classificacao: Contratos, Comercial e Cadastro
+  evidencias_historicas: 23
   padroes:
+  - atualizar + email
+  - alterar + email
+  - incluir + email
+  - adicionar + email
+  - remover + email
+  - excluir + email
+  - trocar + email
+  - destinatário + cobrança
+  - destinatário + boleto
+  - destinatário + nf
+  - alterar + telefone
+  - atualizar + telefone
+  - alterar + domínio
+  - mudança + cnpj
   - atualização cadastral
   - atualização de cadastro
   - alteração cadastral
@@ -1169,37 +1033,68 @@ intencoes:
   - novo email para envio
   - alteração de email
   - alterar email
-  - alterar domínio de envio
   - cadastrar email
   - lista de recebimento
-  - incluir o email
   - incluir email
   - encaminhar as faturas + email
-  - encaminhar as faturas para
-  - atualização para enviar boletos e notas fiscais
-  - próximos envios de cobrança
   - mids não foram gerados
   - mids não foram cadastrados
   - alteração do cnpj e razão social
   - cessão contratual para alteração do cnpj
+  - atualizar email
+  - atualizar e-mail
+  - alterar destinatário
+  - alteração de destinatário
+  - incluir email para recebimento
+  - incluir e-mail para recebimento
+  - adicionar email para recebimento
+  - adicionar e-mail para recebimento
+  - remover email cadastrado
+  - remover e-mail cadastrado
+  - retirar email do cadastro
+  - retirar e-mail do cadastro
+  - excluir email do envio
+  - excluir e-mail do envio
+  - trocar email de recebimento
+  - trocar e-mail de recebimento
+  - email para receber notas
+  - e-mail para receber notas
+  - email para receber boletos
+  - e-mail para receber boletos
+  - recebimento de notas e boletos
+  - recebimento de nf e boleto
+  - atualizar telefone
+  - alterar telefone no boleto
+  - mudança de cnpj
+  - correção cadastral
+  - atualização dos destinatários
+  - destinatários responsáveis pelo recebimento dos boletos
+  - alteração do domínio de email
+  - alteração do domínio de e-mail
+  - email de envio das notas
+  - e-mail de envio das notas
+  - cadastrar novos emails
+  - cadastrar novos e-mails
+  - retirar o e-mail
+  - incluir o e-mail
   exclusoes:
   - cancelar contrato
-  aliases_historicos:
-  - Atualização cadastral (email)
-  - Atualização cadastral
-  - Atualização de Cadastro
-  - Alteração cadastral
-  - Atualização cadastral reajuste contrato
-  - Alteração de cadastro (e-mail) / Reenvio de NF
-  - Alteração cadastral (telefone)
-  - Alteração de cadastro (e-mail)
-  - ALTERAÇÃO CADASTRAL
-  evidencias_historicas: 23
 - id: INT_CON_CONDICOES
-  intencao: Alterar, renegociar ou atualizar condições comerciais/contratuais.
+  intencao: Alterar, renegociar ou atualizar condições comerciais ou contratuais.
   causa_padrao: Alteração de Condições Contratuais/Comerciais
   classificacao: Contratos, Comercial e Cadastro
+  evidencias_historicas: 9
   padroes:
+  - renegociar + contrato
+  - renegociação + contrato
+  - atualizar + condições comerciais
+  - alteração + condições comerciais
+  - mudança + valores + contrato
+  - redução + taxa
+  - renegociação + taxa
+  - revisão + taxa
+  - mudança + indexador
+  - data de aniversário + contrato
   - renegociação comercial
   - renegociar contrato
   - alteração das condições comerciais
@@ -1212,48 +1107,71 @@ intencoes:
   - renovação contratual
   - novo termo de adesão
   - redução de taxa
-  - redução da taxa
   - renegociação da taxa
   - revisão da taxa comercial
-  aliases_historicos:
-  - Pendente Retorno Comercial
-  - Renegociação contrato
-  - Atualização Condições Comerciais
-  - Dúvida comercial
-  - Atualização contrato
-  - Renegociação comercial
-  - Cadastro de MIDs
-  evidencias_historicas: 9
+  - atualizar condições comerciais
+  - atualização contratual
+  - atualizar contrato no billing
+  - mudança de valores do contrato
+  - alteração de valores dos produtos
+  - ajuste de mínimo mensal
+  - ajuste de preços
+  - correção de preço
+  - correção de precificação
+  - atualizar precificação
+  - novas condições comerciais
+  - refletir no billing
+  - mudança do indexador
+  - substituição do indexador
+  - renegociação de valores
+  - renegociação dos valores
+  - renegociação de taxas
+  - novos valores do contrato
+  - aditivo contratual + valores
+  - ajuste anual do contrato
+  - alteração da data de aniversário
+  - nova data base
+  - alterar data base
 - id: INT_CON_INFORMACAO
   intencao: Pedir informação sobre contrato ou condição comercial.
   causa_padrao: Informação Contratual/Comercial
   classificacao: Contratos, Comercial e Cadastro
+  evidencias_historicas: 5
   padroes:
   - dúvida sobre contrato
   - informação sobre contrato
   - entender cláusula do contrato
   - dúvidas sobre contrato e cobrança
-  aliases_historicos:
-  - Dúvidas sobre contrato / cobrança
-  - Informação sobre contrato
-  evidencias_historicas: 5
+  - informações sobre taxas do contrato
+  - taxa fixa e percentual
+  - validar cláusula contratual
+  - entender condição contratual
+  - informação contratual
+  - validar o contrato
+  - confirmar condição comercial
+  - entender sobre a cobrança mensal + contrato
 - id: INT_ADM_ENCERRAMENTO
   intencao: Encerrar chamado sem outra atuação operacional.
   causa_padrao: Encerramento sem Ação
   classificacao: Atendimento Administrativo e Suporte
+  evidencias_historicas: 6
   padroes:
   - sem solicitação encerrar
   - sem ação encerrar
   - pode encerrar chamado
   - não há ação necessária
-  aliases_historicos:
-  - Sem solicitação encerrar
-  - Sem ação, encerrar
-  evidencias_historicas: 6
+  - sem ação necessária
+  - nenhuma ação necessária
+  - sem solicitação + encerrar
+  - sem ação + encerrar
+  - nenhuma ação necessária + encerrar
+  - pode encerrar + chamado
+  - encerrar sem ação
 - id: INT_ADM_DOCUMENTOS
-  intencao: Solicitar carta de quitação, circularização ou documento administrativo.
+  intencao: Solicitar documento administrativo.
   causa_padrao: Documentos/Carta de Quitação
   classificacao: Atendimento Administrativo e Suporte
+  evidencias_historicas: 7
   padroes:
   - carta de quitação
   - circularização
@@ -1262,16 +1180,25 @@ intencoes:
   - reenvio de informação
   - histórico de reajustes
   - histórico completo dos reajustes
-  aliases_historicos:
-  - Carta de quitação / circularização
-  - Carta de quitação
-  - Solicitação de documentos (contrato, NF, histórico)
-  - Reenvio de informação
-  evidencias_historicas: 7
+  - envio do xml
+  - enviar xml
+  - arquivo xml da nf
+  - xml da nota fiscal
+  - informar impostos pagos
+  - detalhamento de impostos
+  - comprovante de cancelamento
+  - relatório de transações
+  - extrato de valores em aberto
+  - solicitação de relatório
+  - enviar relatório
+  - documento indicando cobrança indevida
+  - histórico dos reajustes
+  - carta de cancelamento
 - id: INT_ADM_ACESSO
-  intencao: Solicitar acesso ao portal/admin ou encaminhamento administrativo.
+  intencao: Solicitar acesso ou encaminhamento administrativo.
   causa_padrao: Acesso/Encaminhamento Administrativo
   classificacao: Atendimento Administrativo e Suporte
+  evidencias_historicas: 5
   padroes:
   - acesso admin
   - acesso ao portal
@@ -1279,28 +1206,33 @@ intencoes:
   - encaminhar para comercial
   - restrição no serasa após pagamento
   - não consigo consultar a parte financeira
-  aliases_historicos:
-  - Dúvida acesso ao portal
-  - Acesso admin
-  - PRECISO DE ACESSO AO ADMIN - CLIENTE CONTESTA A QTDE DE TRANSAÇÕES DO PAGADOR
-  - Restrição no Serasa
-  - Cliente reclamando da integração do produto, direcionei para a fila do comercial
-  evidencias_historicas: 5
+  - restrição no serasa
+  - dívida paga e não saiu do serasa
+  - não saiu do serasa
+  - negativação no serasa
+  - aviso do serasa
+  - preciso de acesso ao admin
+  - não consigo consultar o financeiro
+  - acesso à parte financeira
+  - direcionar para o comercial
+  - encaminhar para a fila comercial
+  - problema de integração + comercial
 - id: INT_ADM_INFORMACAO
-  intencao: Solicitar informação administrativa genérica, sem outra intenção operacional
-    identificável.
+  intencao: Solicitar informação administrativa genérica.
   causa_padrao: Informação Administrativa Geral
   classificacao: Atendimento Administrativo e Suporte
+  evidencias_historicas: 3
   padroes:
   - informações gerais sobre atendimento
   - poderiam informar sobre o atendimento
-  aliases_historicos:
-  - Informações geral
-  evidencias_historicas: 3
+  - confirmar cancelamento do pedido
+  - informação geral financeira
+  - solicitar contato do financeiro
 - id: INT_FAT_DUVIDA
   intencao: Consultar ou verificar faturamento, fatura ou obrigações fiscais.
   causa_padrao: Dúvida/Verificação de Faturamento
   classificacao: Faturamento e Obrigações Fiscais
+  evidencias_historicas: 9
   padroes:
   - dúvida sobre faturamento
   - informações sobre faturamento
@@ -1318,225 +1250,123 @@ intencoes:
   - não localizei nenhuma nf
   - duas nf + nf válida
   - duas nf + corretas
-  aliases_historicos:
-  - Informações sobre faturamento
-  - Dúvida sobre faturamento
-  - Verificação Faturamento
-  - Confirmação Dados Fatura
-  - Dúvida sobre adiantamento
-  evidencias_historicas: 9
+  - verificar se foi emitida a fatura
+  - verificar se foi emitida a nota
+  - confirmar qual nota é válida
+  - qual nota é válida
+  - duas notas + qual é válida
+  - duas notas + estão corretas
+  - confirmar se existem nfs
+  - confirmar se existem notas
+  - não encontrei nf
+  - não encontrei nota
+  - confirmar nome de fatura
+  - do que se refere esse serviço
+  - informações sobre a nota fiscal
 - id: INT_FAT_REENVIO_NF
-  intencao: Reenviar nota fiscal/documento fiscal não recebido, sem foco em boleto
-    aberto.
+  intencao: Reenviar nota fiscal não recebida.
   causa_padrao: Reenvio de Nota Fiscal
   classificacao: Faturamento e Obrigações Fiscais
+  evidencias_historicas: 2
   padroes:
   - reenvio de nf
-  - reenviar nota fiscal
-  - encaminhar a nota fiscal
-  - enviar notas fiscais
-  - não recebemos as notas fiscais de meses anteriores
-  - encaminhar as nfs de meses anteriores
-  - encaminhar as nfs
-  - encaminhar notas fiscais
-  - enviar as notas fiscais
+  - reenviar nf
+  - encaminhar a nf
+  - enviar nf
+  - não recebemos as nf de meses anteriores
+  - encaminhar as nf de meses anteriores
+  - não recebemos a nf
+  - não recebi a nf
+  - não recebemos a nota
+  - não recebi a nota
+  - não recebemos as notas
+  - envio da nota fiscal
+  - envio das notas fiscais
+  - encaminhar nf
+  - encaminhar nota
+  - encaminhar as notas
+  - segunda via da nf
+  - segunda via de nf
+  - enviar nf por email
+  - enviar nf por e-mail
+  - notas fiscais não recebidas
+  - solicitar o envio das notas
+  - solicito o envio das notas
+  - solicito o envio da nota
+  - encaminhar nota fiscal
+  - encaminhar a nota fiscal referente
+  - reenviar contendo
+  - reenviar + nf
+  - reenvio + nf
+  - encaminhar + nf
+  - enviar + nf
+  - não recebi + nf
+  - não recebemos + nf
+  - segunda via + nf
+  - solicitar envio + nf
+  - solicitar reenvio + nf
+  - solicitar segunda via + nf
+  - solicitar reemissão + nf
   exclusoes:
   - boleto em aberto
-  aliases_historicos:
-  - Reenvio de NF
-  - Reenvio de nf
-  evidencias_historicas: 2
 - id: INT_FAT_CORRECAO_PO
-  intencao: Corrigir dados fiscais ou incluir PO por carta de correção, sem cancelamento/reemissão.
+  intencao: Corrigir dados fiscais ou incluir PO por carta de correção.
   causa_padrao: Correção Fiscal/PO por Carta de Correção
   classificacao: Faturamento e Obrigações Fiscais
+  evidencias_historicas: 4
   padroes:
   - carta de correção + po
-  - carta de correção das notas
+  - carta de correção das nf
   - corrigir dados fiscais da nf
-  - corrigir descritivo da nota fiscal
+  - corrigir descritivo da nf
   - alteração de dados fiscais
   - erro no descritivo da nf
   - erro no descritivo dos serviços
-  - erro no descritivo dos serviços da nf
-  - corrigir descrição da nota fiscal
+  - corrigir descrição da nf
   - conste + po + corrigir
   - corrigir descritivo dos serviços
+  - correção dos dados fiscais
+  - corrigir informação fiscal
+  - corrigir impostos da nota
+  - corrigir iss da nota
+  - nota sem po
+  - incluir pedido na nota
+  - po isolado nas próximas notas
+  - próximas notas + po
+  - próximas notas fiscais + po
+  - constar o número da po
+  - correção do billing
+  - corrigir o corpo da nota
   exclusoes:
   - cancelar nf
   - substituir nf
-  aliases_historicos:
-  - Correção descritivo nota fiscal
-  - Alteração de dados fiscais
-  - Incluir PO NF
-  evidencias_historicas: 4
 - id: INT_FAT_REQUISITO
-  intencao: Tratar requisito/regra fiscal específica do cliente.
+  intencao: Tratar requisito ou regra fiscal específica.
   causa_padrao: Requisito Fiscal
   classificacao: Faturamento e Obrigações Fiscais
+  evidencias_historicas: 1
   padroes:
   - requisito fiscal do cliente
   - regra fiscal do cliente
   - retenção de imposto
-  - NBS na nota
-  - código NBS da nota
-  - notas com nbs
-  - informar o NBS
-  - inclusão do NBS na NF
-  aliases_historicos:
-  - Requisito fiscal do cliente
-  evidencias_historicas: 1
-conflitos_e_excecoes:
-- id: historico_outros
-  causa_ou_rotulo: Outros
-  quantidade: 8
-  exemplos_chamado:
-  - '18507331'
-  - '20009201'
-  - '20248313'
-  - '20837028'
-  - '20883974'
-  - '21079864'
-  lados:
-  - Atendimento Administrativo e Suporte no histórico
-  - Cobrança, Contratos ou Faturamento sugeridos pelo conteúdo
-  diferenca_intencao: O texto descreve trabalhos concretos diferentes; o rótulo Outros
-    não representa uma causa operacional única.
-  regra: Não mapear Outros automaticamente. Detectar intenção explícita no texto;
-    sem evidência suficiente, deixar sem classificação para revisão.
-- id: boleto_nf_misto
-  causa_ou_rotulo: Reenvio de boleto / NF
-  quantidade: 13
-  exemplos_chamado:
-  - '17118848'
-  - '19985861'
-  - '20192438'
-  - '20857247'
-  - '21029459'
-  - '24793120'
-  - '25272654'
-  lados:
-  - Cancelar/emitir boleto
-  - Corrigir cobrança
-  - Solicitar boleto e NF
-  - Perguntar sobre boleto e NF
-  - Cancelar NF e boleto no mesmo pedido
-  diferenca_intencao: O rótulo combina dois objetos; o pedido operacional varia entre
-    registros, embora a classe histórica seja Pagamentos, Boletos e Recebimentos.
-  regra: Não usar o alias histórico sozinho. Classificar pelo verbo/objeto explícito;
-    se não houver ação única, retornar ambíguo.
-- id: po_correcao_versus_reemissao
-  causa_ou_rotulo: PO incluído na NF
-  quantidade: 6
-  exemplos_chamado:
-  - '21790747'
-  - '23663601'
-  - '24041087'
-  - '24041048'
-  - '26015915'
-  - '26532404'
-  lados:
-  - Substituição/reemissão de NF com PO
-  - Carta de correção para incluir PO
-  - PO em próximas NFs sem ação de correção explícita
-  diferenca_intencao: A ação de substituir/reemitir leva a Cancelamento e Reemissão
-    de Nota Fiscal; carta de correção sem reemissão leva a Faturamento e Obrigações
-    Fiscais. PO isolado não decide.
-  regra: NF + ação explícita de substituir/reemitir => intenção de reemissão; carta
-    de correção + PO => intenção fiscal; inclusão de PO sem ação clara => revisão/ambiguidade.
-- id: cancelamento_produto_com_contexto_nf
-  causa_ou_rotulo: Cancelamento contrato (produto) / NF
-  quantidade: 1
-  exemplos_chamado:
-  - '19334708'
-  lados:
-  - Cancelamento de produto/contrato e cobranças associadas
-  - NF citada apenas como contexto do histórico
-  diferenca_intencao: O texto pede cancelar o produto 3DS e suas cobranças, não cancelar
-    a nota fiscal.
-  regra: Ação explícita de cancelar produto/contrato => Contratos, Comercial e Cadastro.
-- id: rotulo_generico_duvidas
-  causa_ou_rotulo: Dúvidas
-  quantidade: 1
-  exemplos_chamado:
-  - '27130737'
-  lados:
-  - Classe histórica: Contratos, Comercial e Cadastro
-  - Descrição interrompida antes de informar o pedido final
-  diferenca_intencao: O texto termina em “Dessa forma, gostaria” e não revela a ação
-    solicitada.
-  regra: Não usar o rótulo Dúvidas como alias classificável; solicitar complemento/revisão
-    humana.
-- id: rotulo_generico_informacoes_geral
-  causa_ou_rotulo: Informações geral
-  quantidade: 3
-  exemplos_chamado:
-  - '26187138'
-  - '26448888'
-  - '26710998'
-  lados:
-  - Confirmação de pedido/pagamento
-  - Descrição vazia
-  - Incompatibilidade de integração
-  diferenca_intencao: O rótulo reúne ações administrativas diferentes e uma descrição
-    vazia.
-  regra: Usar a ação explícita do texto; descrição vazia permanece sem classificação
-    automática.
-- id: volumetria_3ds_sem_classificacao
-  causa_ou_rotulo: questionar a volumetria cobrada referente ao produto 3DS
-  quantidade: 1
-  exemplos_chamado:
-  - '19555123'
-  lados:
-  - Causa registrada
-  - Classificação vazia no histórico
-  diferenca_intencao: O texto questiona transparência/conferência da volumetria; não
-    há rótulo de classe histórico para validar a inferência.
-  regra: Candidato a Contestação/Divergência de Cobrança; manter como revisão do N2,
-    não contabilizar como classificação histórica correta.
-- id: causa_historica_vazia
-  causa_ou_rotulo: Causa raiz vazia
-  quantidade: 1
-  exemplos_chamado:
-  - '26858033'
-  lados:
-  - Classe histórica: Cancelamento e Reemissão de Nota Fiscal
-  - Descrição pede cancelamento de NF de setup sem contrato fechado
-  diferenca_intencao: A classe pode ser inferida pelo pedido explícito, mas a causa
-    histórica está vazia.
-  regra: Classificar a partir da descrição; manter o dado faltante registrado no relatório.
-- id: valor_nf_contestar_vs_verificar
-  causa_ou_rotulo: Dúvida/divergência de valor da NF ou transações
-  regra: 'Histórico: contestar/questionar valor, volume ou transações cobradas =>
-    Cobrança e Contestação; confirmar qual NF é válida, duas NFs recebidas, valor
-    correto para pagar ou MIDs cobrados => Faturamento e Obrigações Fiscais.'
-- id: sem_cobranca_dividido
-  causa_ou_rotulo: Cliente ativo sem cobrança
-  exemplos_chamado:
-  - '17839281'
-  - '25276254'
-  regra: Histórico dividido entre Faturamento e Contratos. O dicionário adota Faturamento
-    porque a ação principal é verificar o faturamento.
-- id: rotulos_template_divergentes
-  causa_ou_rotulo: Rótulo do template diverge da ação pedida no corpo
-  exemplos_chamado:
-  - '19985167'
-  - '20314174'
-  - '23831268'
-  - '25498504'
-  - '25974810'
-  - '27052744'
-  - '27749029'
-  regra: A classificação decorre da ação pedida no corpo do chamado; nesses chamados
-    o rótulo histórico não deve ser usado como evidência única.
-regras_de_nao_classificacao:
-- Não classificar por palavra isolada, score ou quantidade de termos.
-- Conceitos precisam participar de uma regra conceitual válida; objeto ou contexto
-  isolado não classifica.
-- Ação + objeto é a combinação padrão para pedidos operacionais.
-- Objeto + contexto só classifica quando a combinação representa uma situação inequívoca
-  já prevista pelo dicionário.
-- Não usar assunto quando Descrição detalhada estiver preenchida.
-- Não usar Outros como intenção automática.
-- Não inferir classificação para descrição vazia ou conflito sem precedência documentada.
-- Não criar classe fora das seis classes permitidas.
+  - nbs na nf
+  - código nbs da nf
+  - nf com nbs
+  - informar o nbs
+  - inclusão do nbs na nf
+  - nota sem nbs
+  - nf sem nbs
+  - nfs não consta nbs
+  - notas não consta nbs
+  - notas contendo nbs
+  - reenviar notas com nbs
+  - informação da nbs
+  - código de serviço + retenção
+  - retenção de irrf
+  - retenção de csrf
+  - tributos cbs e ibs
+  - discriminação de cbs e ibs
+  - exigência fiscal do cliente
+  - padrão fiscal da empresa
+
+

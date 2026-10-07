@@ -1,26 +1,32 @@
+"""Motor determinístico do AIZEN.
 
-"""Texto -> normalização -> conceitos/padrões -> intenção -> causa padrão -> classificação oficial."""
+Fluxo de decisão:
+1. Texto -> vocabulário canônico -> assinatura operacional.
+2. Assinatura -> causa raiz -> uma das seis classificações oficiais.
+3. Padrões textuais atuais como fallback.
+4. Sem evidência segura -> NO_PATTERN.
+"""
+
+from __future__ import annotations
 
 from pathlib import Path
 import re
 import unicodedata
+from typing import Any
 
 import pandas as pd
 import yaml
 
-from extract import load_compilado_sheet
 from parse_description import normalize_description
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-
 DICTIONARY_PATH = (
     BASE_DIR
     / "data"
     / "input"
     / "dicionario_aizen_intencoes.yaml"
 )
-
 TAXONOMY_PATH = (
     BASE_DIR
     / "data"
@@ -28,2015 +34,1156 @@ TAXONOMY_PATH = (
     / "causa_raiz_taxonomia.yaml"
 )
 
-TEMPLATE_PATH = (
-    BASE_DIR
-    / "data"
-    / "input"
-    / "plano_n2_template.xlsx"
+STATUS_SUGGESTED = "Sugerida"
+STATUS_UNMATCHED = "Sem correspondencia"
+STATUS_AMBIGUOUS = "Ambigua"
+
+REASON_CLASSIFIED_SIGNATURE = "CLASSIFIED_SIGNATURE"
+REASON_CLASSIFIED_PATTERN = "CLASSIFIED_PATTERN"
+REASON_EMPTY_TEXT = "EMPTY_TEXT"
+REASON_NO_PATTERN = "NO_PATTERN"
+REASON_AMBIGUOUS = "AMBIGUOUS_CAUSE"
+REASON_NO_CLASS = "CAUSE_WITHOUT_CLASS"
+
+VOCABULARY_GROUPS = (
+    "acoes",
+    "objetos",
+    "contextos",
+    "canais",
+)
+
+SIGNATURE_FIELDS = {
+    "acoes_um_de": "acoes",
+    "acoes_todas": "acoes",
+    "objetos_um_de": "objetos",
+    "objetos_todos": "objetos",
+    "contextos_um_de": "contextos",
+    "contextos_todos": "contextos",
+    "canais_um_de": "canais",
+    "canais_todos": "canais",
+    "excluir_acoes": "acoes",
+    "excluir_objetos": "objetos",
+    "excluir_contextos": "contextos",
+    "excluir_canais": "canais",
+}
+
+FORM_BOILERPLATE_PATTERNS = (
+    r"\bdesejo falar com o setor financeiro\b",
+    r"\bsobre qual produto ou area deseja falar\b",
+    r"\bcomo podemos te ajudar\b",
+    r"\btransferir (?:o )?chamado para o financeiro\b",
+    r"\btransferir (?:o )?chamado para o n2\b",
+    r"\bdemanda precisa ser tratada pelo n2\b",
+    r"\bencaminhar (?:o )?chamado para o financeiro\b",
+    r"\bencaminhar (?:o )?chamado para o n2\b",
 )
 
 
-# ---------------------------------------------------------------------------
-# NORMALIZAÇÃO
-# ---------------------------------------------------------------------------
-
-def normalize_text(text) -> str:
-    if pd.isna(text):
+def normalize_text(value: Any) -> str:
+    """Normaliza texto para correspondência determinística."""
+    if value is None or pd.isna(value):
         return ""
 
-    value = unicodedata.normalize(
-        "NFKD",
-        normalize_description(str(text)).lower(),
-    )
-
-    value = "".join(
+    text = normalize_description(str(value)).lower()
+    text = unicodedata.normalize("NFKD", text)
+    text = "".join(
         char
-        for char in value
+        for char in text
         if not unicodedata.combining(char)
     )
-
-    # ------------------------------------------------------------------
-    # 1. Normaliza números associados a conceitos relevantes.
-    #    Faz isso ANTES de transformar "notas fiscais" em "nf".
-    # ------------------------------------------------------------------
-
-    # 2 notas fiscais -> duas notas fiscais
-    value = re.sub(
-        r"\b2\s+notas?\s+fiscais?\b",
-        "duas notas fiscais",
-        value,
-    )
-
-    # 3 notas fiscais -> tres notas fiscais
-    value = re.sub(
-        r"\b3\s+notas?\s+fiscais?\b",
-        "tres notas fiscais",
-        value,
-    )
-
-    value = re.sub(
-    r"\b3\s+notas?\b",
-    "tres notas",
-    value,
-    )
-
-    # 4+ notas fiscais
-    for number, word in {
-        "4": "quatro",
-        "5": "cinco",
-        "6": "seis",
-        "7": "sete",
-        "8": "oito",
-        "9": "nove",
-    }.items():
-        value = re.sub(
-            rf"\b{number}\s+notas?\s+fiscais?\b",
-            f"{word} notas fiscais",
-            value,
-        )
-
-    # Números associados a boletos.
-    for number, word in {
-        "2": "dois",
-        "3": "tres",
-        "4": "quatro",
-        "5": "cinco",
-        "6": "seis",
-        "7": "sete",
-        "8": "oito",
-        "9": "nove",
-    }.items():
-        value = re.sub(
-            rf"\b{number}\b(?=\s+boletos?)",
-            word,
-            value,
-        )
-
-    # ------------------------------------------------------------------
-    # 2. Unifica variações de nota fiscal.
-    # ------------------------------------------------------------------
-
-    value = re.sub(
-        r"\bnotas?\s+fisc(?:al|ais)\b"
-        r"|\bnotas?\b"
-        r"|\bnf'?s\b"
-        r"|\bnfs\b",
-        " nf ",
-        value,
-    )
-
-    # ------------------------------------------------------------------
-    # 3. Normaliza e-mail.
-    # ------------------------------------------------------------------
-
-    value = re.sub(
-        r"[\w.-]+@[\w.-]+\.\w+",
+    text = re.sub(
+        r"[\w.+-]+@[\w.-]+\.\w+",
         " email ",
-        value,
+        text,
     )
-
-    # ------------------------------------------------------------------
-    # 4. Limpeza geral.
-    # ------------------------------------------------------------------
-
-    value = re.sub(
-        r"[^a-z0-9]+",
-        " ",
-        value,
-    ).strip()
-
-    value = re.sub(
-        r"\be\s+mail\b",
-        "email",
-        value,
+    text = re.sub(
+        r"\bnotas?\s+fisc(?:al|ais)\b"
+        r"|\bnf'?s\b"
+        r"|\bnfs\b"
+        r"|\bnf-?e\b"
+        r"|\bnfs-?e\b",
+        " nf ",
+        text,
     )
+    text = re.sub(r"[^a-z0-9]+", " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
-    return value
 
-# ---------------------------------------------------------------------------
-# CARGA DE CONFIGURAÇÃO
-# ---------------------------------------------------------------------------
+def prepare_classification_text(value: Any) -> str:
+    """Remove ruído estrutural do formulário."""
+    text = normalize_text(value)
+    for pattern in FORM_BOILERPLATE_PATTERNS:
+        text = re.sub(pattern, " ", text)
+    return re.sub(r"\s+", " ", text).strip()
 
-def _load_yaml(path: Path) -> dict:
-    return yaml.safe_load(
-        path.read_text(encoding="utf-8")
+
+def _load_yaml(path: Path) -> dict[str, Any]:
+    content = yaml.safe_load(
+        path.read_text(encoding="utf-8-sig")
     )
+    return content or {}
 
 
 def load_dictionary(
     path: Path = DICTIONARY_PATH,
-) -> dict:
+) -> dict[str, Any]:
     dictionary = _load_yaml(path)
-
-    allowed = set(
-        dictionary["classes_permitidas"]
-    )
-
-    seen_ids = set()
-    cause_classes = {}
-
-    for intent in dictionary["intencoes"]:
-        intent_id = intent["id"]
-
-        if intent_id in seen_ids:
-            raise ValueError(
-                f"ID de intenção duplicado: {intent_id}"
-            )
-
-        seen_ids.add(intent_id)
-
-        if intent["classificacao"] not in allowed:
-            raise ValueError(
-                f"Classificação fora do contrato em "
-                f"{intent_id}: "
-                f"{intent['classificacao']}"
-            )
-
-        cause = intent["causa_padrao"]
-
-        previous = cause_classes.setdefault(
-            cause,
-            intent["classificacao"],
+    required = {
+    "classes_permitidas",
+    "causas",
+    "aliases_causas",
+    "vocabulario",
+    "intencoes",
+    }
+    missing = required.difference(dictionary)
+    if missing:
+        raise ValueError(
+            "Seções ausentes no dicionário: "
+            f"{sorted(missing)}"
         )
-
-        if previous != intent["classificacao"]:
-            raise ValueError(
-                f"Causa padrão '{cause}' aponta "
-                "para mais de uma classificação."
-            )
-
     return dictionary
 
 
 def load_taxonomy(
     path: Path = DICTIONARY_PATH,
-) -> dict:
-    """Mapa causa padrão -> classificação oficial, derivado do dicionário."""
+) -> dict[str, str]:
     return {
-        intent["causa_padrao"]: intent["classificacao"]
-        for intent in load_dictionary(path)["intencoes"]
+        str(item["causa_padrao"]).strip(): str(
+            item["classificacao"]
+        ).strip()
+        for item in load_dictionary(path)["intencoes"]
+        if item.get("causa_padrao")
+        and item.get("classificacao")
     }
 
 
 def load_objects(
     path: Path = TAXONOMY_PATH,
-) -> dict:
-    return _load_yaml(path)[
-        "objetos_operacionais"
-    ]
+) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    return _load_yaml(path).get(
+        "objetos_operacionais",
+        {},
+    )
 
 
 def load_rules(
     path: Path = DICTIONARY_PATH,
     include_draft: bool = False,
-) -> dict:
-    """Compatibilidade: expõe intenções indexadas por ID, sem status/score."""
+) -> dict[str, dict[str, Any]]:
+    del include_draft
     return {
-        intent["id"]: intent
-        for intent in load_dictionary(path)["intencoes"]
+        item["id"]: item
+        for item in load_dictionary(path)["intencoes"]
+        if item.get("id")
+    }
+
+def standardize_manual_cause(
+    raw_cause: Any,
+    dictionary: dict[str, Any] | None = None,
+) -> dict[str, Any] | None:
+    """
+    Padroniza uma causa manual por correspondência exata.
+
+    Retorna None quando a causa não possui alias seguro.
+    """
+    dictionary = dictionary or load_dictionary()
+
+    cause_name = _clean(raw_cause)
+    if not cause_name:
+        return None
+
+    cause_aliases = dictionary.get(
+        "aliases_causas",
+        {},
+    )
+
+    causes = dictionary.get(
+        "causas",
+        {},
+    )
+
+    cause_id = cause_aliases.get(
+        cause_name
+    )
+
+    if not cause_id:
+        return None
+
+    cause_data = causes.get(
+        cause_id
+    )
+
+    if not isinstance(cause_data, dict):
+        return None
+
+    canonical_name = _clean(
+        cause_data.get("nome")
+    )
+
+    classification = _clean(
+        cause_data.get("classificacao")
+    )
+
+    if not canonical_name or not classification:
+        return None
+
+    return {
+        "causa_id": cause_id,
+        "causa_padrao": canonical_name,
+        "classificacao": classification,
     }
 
 
+
+def resolve_intent_cause(
+    intent: dict[str, Any],
+    dictionary: dict[str, Any],
+) -> dict[str, str]:
+    """
+    Resolve causa e classificação pelo catálogo canônico.
+
+    Enquanto as intenções são migradas, mantém compatibilidade
+    com causa_padrao e classificacao existentes.
+    """
+    cause_id = _clean(
+        intent.get("causa_id")
+    )
+
+    causes = dictionary.get(
+        "causas",
+        {},
+    )
+
+    if cause_id:
+        cause_data = causes.get(
+            cause_id
+        )
+
+        if not isinstance(cause_data, dict):
+            raise ValueError(
+                "Causa canônica inexistente na intenção "
+                f"'{_clean(intent.get('id'))}': "
+                f"'{cause_id}'."
+            )
+
+        canonical_name = _clean(
+            cause_data.get("nome")
+        )
+
+        classification = _clean(
+            cause_data.get("classificacao")
+        )
+
+        if not canonical_name:
+            raise ValueError(
+                f"Causa canônica sem nome: '{cause_id}'."
+            )
+
+        if not classification:
+            raise ValueError(
+                "Causa canônica sem classificação: "
+                f"'{cause_id}'."
+            )
+
+        return {
+            "causa_id": cause_id,
+            "causa_padrao": canonical_name,
+            "classificacao": classification,
+        }
+
+    return {
+        "causa_id": "",
+        "causa_padrao": _clean(
+            intent.get("causa_padrao")
+        ),
+        "classificacao": _clean(
+            intent.get("classificacao")
+        ),
+    }
+
+
+
+def _clean(value: Any) -> str:
+    if value is None or pd.isna(value):
+        return ""
+    return str(value).strip()
+
+
+def _as_string_list(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list):
+        return [str(value).strip()]
+    return [
+        str(item).strip()
+        for item in value
+        if str(item).strip()
+    ]
+
+
 def validate_dictionary(
-    dictionary: dict | None = None,
+    dictionary: dict[str, Any] | None = None,
 ) -> list[str]:
-    dictionary = (
-        dictionary
-        or load_dictionary()
+    """
+    Valida classes, causas, aliases, vocabulário,
+    intenções, padrões e assinaturas.
+    """
+    dictionary = dictionary or load_dictionary()
+
+    allowed_classes = set(
+        dictionary.get(
+            "classes_permitidas",
+            [],
+        )
     )
 
-    allowed = set(
-        dictionary["classes_permitidas"]
+    vocabulary = dictionary.get(
+        "vocabulario",
+        {},
     )
 
-    problems = []
-    ids = set()
-    cause_classes = {}
+    causes = dictionary.get(
+        "causas",
+        {},
+    )
 
-    for intent in dictionary["intencoes"]:
-        intent_id = intent["id"]
+    cause_aliases = dictionary.get(
+        "aliases_causas",
+        {},
+    )
 
-        if intent_id in ids:
+    problems: list[str] = []
+    seen_intent_ids: set[str] = set()
+
+    # Validação do catálogo canônico de causas.
+    if not isinstance(causes, dict):
+        problems.append(
+            "Seção de causas inválida."
+        )
+        causes = {}
+
+    cause_names: list[str] = []
+
+    for cause_id, cause_data in causes.items():
+        if not isinstance(cause_data, dict):
+            problems.append(
+                f"Causa inválida: {cause_id}"
+            )
+            continue
+
+        cause_name = _clean(
+            cause_data.get("nome")
+        )
+
+        classification = _clean(
+            cause_data.get("classificacao")
+        )
+
+        if not cause_name:
+            problems.append(
+                f"Causa sem nome: {cause_id}"
+            )
+        else:
+            cause_names.append(
+                cause_name
+            )
+
+        if not classification:
+            problems.append(
+                "Causa sem classificação: "
+                f"{cause_id}"
+            )
+        elif classification not in allowed_classes:
+            problems.append(
+                "Classificação inválida na causa: "
+                f"{cause_id} -> {classification}"
+            )
+
+    duplicate_cause_names = {
+        cause_name
+        for cause_name in cause_names
+        if cause_names.count(cause_name) > 1
+    }
+
+    for cause_name in sorted(
+        duplicate_cause_names
+    ):
+        problems.append(
+            "Nome de causa duplicado: "
+            f"{cause_name}"
+        )
+
+    # Validação dos aliases das causas manuais.
+    if not isinstance(cause_aliases, dict):
+        problems.append(
+            "Seção de aliases_causas inválida."
+        )
+        cause_aliases = {}
+
+    for alias, cause_id in cause_aliases.items():
+        alias_name = _clean(alias)
+        canonical_cause_id = _clean(
+            cause_id
+        )
+
+        if not alias_name:
+            problems.append(
+                "Alias de causa vazio."
+            )
+
+        if not canonical_cause_id:
+            problems.append(
+                "Alias sem causa canônica: "
+                f"{alias_name}"
+            )
+            continue
+
+        if canonical_cause_id not in causes:
+            problems.append(
+                "Alias aponta para causa inexistente: "
+                f"{alias_name} -> "
+                f"{canonical_cause_id}"
+            )
+
+    # Validação do vocabulário canônico.
+    if not isinstance(vocabulary, dict):
+        problems.append(
+            "Seção de vocabulário inválida."
+        )
+        vocabulary = {}
+
+    for group in VOCABULARY_GROUPS:
+        concepts = vocabulary.get(
+            group
+        )
+
+        if not isinstance(concepts, dict):
+            problems.append(
+                "Vocabulário ausente ou inválido: "
+                f"{group}"
+            )
+            continue
+
+        for concept, aliases in concepts.items():
+            concept_name = _clean(
+                concept
+            )
+
+            if not concept_name:
+                problems.append(
+                    "Conceito vazio no vocabulário: "
+                    f"{group}"
+                )
+
+            if not _as_string_list(aliases):
+                problems.append(
+                    "Conceito sem aliases: "
+                    f"{group}.{concept_name}"
+                )
+
+    # Validação das intenções atuais.
+    for item in dictionary.get(
+        "intencoes",
+        [],
+    ):
+        if not isinstance(item, dict):
+            problems.append(
+                "Intenção inválida."
+            )
+            continue
+
+        intent_id = _clean(
+            item.get("id")
+        )
+
+        if not intent_id:
+            problems.append(
+                "Intenção sem id"
+            )
+            continue
+
+        if intent_id in seen_intent_ids:
             problems.append(
                 f"ID duplicado: {intent_id}"
             )
 
-        ids.add(intent_id)
+        seen_intent_ids.add(
+            intent_id
+        )
 
-        if intent["classificacao"] not in allowed:
+        # Compatibilidade temporária com o modelo atual.
+        cause_id = _clean(
+            item.get("causa_id")
+        )
+
+        if cause_id:
+            cause_data = causes.get(
+                cause_id
+            )
+
+            if not isinstance(cause_data, dict):
+                problems.append(
+                    "Intenção aponta para causa "
+                    "canônica inexistente: "
+                    f"{intent_id} -> {cause_id}"
+                )
+            else:
+                canonical_classification = _clean(
+                    cause_data.get(
+                        "classificacao"
+                    )
+                )
+
+                legacy_classification = _clean(
+                    item.get(
+                        "classificacao"
+                    )
+                )
+
+                if (
+                    legacy_classification
+                    and canonical_classification
+                    != legacy_classification
+                ):
+                    problems.append(
+                        "Classificação divergente entre "
+                        "intenção e causa canônica: "
+                        f"{intent_id} -> {cause_id}"
+                    )
+
+        # Compatibilidade temporária com as intenções
+        # que ainda não foram migradas para causa_id.
+        if not cause_id:
+            if not item.get("causa_padrao"):
+                problems.append(
+                    "Intenção sem causa_padrao: "
+                    f"{intent_id}"
+                )
+
+            classification = _clean(
+                item.get("classificacao")
+            )
+
+            if classification not in allowed_classes:
+                problems.append(
+                    "Classe inválida: "
+                    f"{intent_id} -> "
+                    f"{classification}"
+                )
+
+        if not item.get("padroes"):
             problems.append(
-                f"Classe fora do contrato: "
+                "Intenção sem padrões: "
                 f"{intent_id}"
             )
 
-        previous = cause_classes.setdefault(
-            intent["causa_padrao"],
-            intent["classificacao"],
+        signatures = item.get(
+            "assinaturas",
+            [],
         )
 
-        if previous != intent["classificacao"]:
+        if signatures and not isinstance(
+            signatures,
+            list,
+        ):
             problems.append(
-                "Causa padrão com classes "
-                f"conflitantes: {intent['causa_padrao']}"
+                "Assinaturas inválidas: "
+                f"{intent_id}"
             )
+            continue
 
-        if not intent.get("padroes"):
-            problems.append(
-                f"Intenção sem padrões: {intent_id}"
-            )
-
-    for rule in dictionary.get(
-        "precedencia",
-        [],
-    ):
-        for intent_id in [
-            rule["preferir"],
-            *rule.get("sobre", []),
-        ]:
-            if intent_id not in ids:
-                problems.append(
-                    "Precedência aponta para "
-                    f"intenção inexistente: {intent_id}"
-                )
-
-    # A camada conceitual é opcional nesta primeira etapa.
-    # Quando presente, validamos apenas a estrutura mínima, sem
-    # impor uma ontologia rígida ao projeto.
-    concepts = dictionary.get("conceitos", {})
-    if concepts is not None and not isinstance(concepts, dict):
-        problems.append(
-            "A seção 'conceitos' deve ser um mapa conceito -> padrões."
-        )
-
-    if isinstance(concepts, dict):
-        for concept_id, definition in concepts.items():
-            if not str(concept_id).strip():
-                problems.append(
-                    "Conceito com ID vazio."
-                )
-
-            if not _concept_patterns(
-                concepts,
-                concept_id,
+        for index, signature in enumerate(
+            signatures,
+            start=1,
+        ):
+            if not isinstance(
+                signature,
+                dict,
             ):
                 problems.append(
-                    f"Conceito sem padrões: {concept_id}"
-                )
-
-    fallback_classes = dictionary.get(
-        "classificacoes_fallback",
-        [],
-    )
-
-    if fallback_classes is not None and not isinstance(
-        fallback_classes,
-        list,
-    ):
-        problems.append(
-            "A seção 'classificacoes_fallback' deve ser uma lista."
-        )
-    else:
-        fallback_ids = set()
-        fallback_causes = set()
-
-        for fallback in fallback_classes:
-            if not isinstance(fallback, dict):
-                problems.append(
-                    "Fallback de classificação inválido: esperado objeto YAML."
+                    "Assinatura inválida: "
+                    f"{intent_id}[{index}]"
                 )
                 continue
 
-            fallback_id = fallback.get("id")
-            classification = fallback.get("classificacao")
-            cause = fallback.get("causa_padrao")
-            requirements = fallback.get("conceitos", [])
+            unknown_fields = (
+                set(signature)
+                - set(SIGNATURE_FIELDS)
+            )
 
-            if not fallback_id:
-                problems.append("Fallback de classificação sem ID.")
-            elif fallback_id in fallback_ids:
+            if unknown_fields:
                 problems.append(
-                    f"ID de fallback duplicado: {fallback_id}"
-                )
-            else:
-                fallback_ids.add(fallback_id)
-
-            if classification not in allowed:
-                problems.append(
-                    f"Fallback fora do contrato: {fallback_id or '<sem id>'}"
+                    "Campos de assinatura inválidos: "
+                    f"{intent_id}[{index}] "
+                    f"{sorted(unknown_fields)}"
                 )
 
-            if not cause:
-                problems.append(
-                    f"Fallback sem causa padrão: {fallback_id or '<sem id>'}"
-                )
-            elif cause in fallback_causes:
-                problems.append(
-                    f"Causa padrão de fallback duplicada: {cause}"
-                )
-            else:
-                fallback_causes.add(cause)
-
-            if not requirements:
-                problems.append(
-                    f"Fallback sem conceitos: {fallback_id or '<sem id>'}"
+            for field, values in signature.items():
+                group = SIGNATURE_FIELDS.get(
+                    field
                 )
 
-            for concept_id in requirements:
-                if concept_id not in concepts:
-                    problems.append(
-                        "Fallback aponta para conceito inexistente: "
-                        f"{concept_id}"
+                if not group:
+                    continue
+
+                known_concepts = set(
+                    vocabulary.get(
+                        group,
+                        {},
                     )
-
-    conceptual_rules = dictionary.get(
-        "regras_conceituais",
-        [],
-    )
-
-    if conceptual_rules is not None and not isinstance(
-        conceptual_rules,
-        list,
-    ):
-        problems.append(
-            "A seção 'regras_conceituais' deve ser uma lista."
-        )
-    else:
-        rule_ids = set()
-        allowed_scopes = {"local", "texto"}
-
-        for rule in conceptual_rules:
-            if not isinstance(rule, dict):
-                problems.append(
-                    "Regra conceitual inválida: esperado objeto YAML."
-                )
-                continue
-
-            rule_id = rule.get("id")
-            intent_id = rule.get("intencao")
-            requirements = rule.get("requisitos", [])
-            scope = rule.get("escopo", "local")
-
-            if not rule_id:
-                problems.append(
-                    "Regra conceitual sem ID."
-                )
-            elif rule_id in rule_ids:
-                problems.append(
-                    f"ID de regra conceitual duplicado: {rule_id}"
-                )
-            else:
-                rule_ids.add(rule_id)
-
-            if scope not in allowed_scopes:
-                problems.append(
-                    f"Escopo conceitual inválido em {rule_id or '<sem id>'}: {scope}"
                 )
 
-            if not intent_id:
-                problems.append(
-                    f"Regra conceitual sem intenção: {rule_id or '<sem id>'}"
-                )
-            elif intent_id not in ids:
-                problems.append(
-                    "Regra conceitual aponta para intenção "
-                    f"inexistente: {intent_id}"
-                )
-
-            if not requirements:
-                problems.append(
-                    f"Regra conceitual sem requisitos: "
-                    f"{rule_id or '<sem id>'}"
-                )
-
-            for requirement in requirements:
-                for concept_id in _normalize_concept_requirement(
-                    requirement
+                for concept in _as_string_list(
+                    values
                 ):
-                    if concept_id not in concepts:
+                    if concept not in known_concepts:
                         problems.append(
-                            "Regra conceitual aponta para conceito "
-                            f"inexistente: {concept_id}"
+                            "Conceito desconhecido: "
+                            f"{intent_id}[{index}]."
+                            f"{field}={concept}"
                         )
 
-    return sorted(set(problems))
-
-
-# ---------------------------------------------------------------------------
-# MATCHING
-# ---------------------------------------------------------------------------
-
-def _contains_phrase(
-    text: str,
-    phrase: str,
-) -> bool:
-    normalized = normalize_text(
-        phrase
+    return sorted(
+        set(problems)
     )
 
+
+def _contains_phrase(text: str, phrase: str) -> bool:
+    normalized_phrase = normalize_text(phrase)
+    if not normalized_phrase:
+        return False
     return (
-        bool(normalized)
-        and f" {normalized} "
+        f" {normalized_phrase} "
         in f" {text} "
     )
 
 
-def _matches_pattern(
+def extract_signature(
     text: str,
-    pattern: str,
-) -> bool:
-    parts = [
-        part.strip()
-        for part in pattern.split("+")
-    ]
+    dictionary: dict[str, Any],
+) -> dict[str, set[str]]:
+    """Extrai conceitos canônicos presentes no texto."""
+    normalized_text = prepare_classification_text(text)
+    vocabulary = dictionary.get("vocabulario", {})
 
-    return all(
-        _contains_phrase(text, part)
-        for part in parts
-    )
-
-
-# ---------------------------------------------------------------------------
-# CONCEITOS
-# ---------------------------------------------------------------------------
-
-def _concept_patterns(concepts: dict, concept_id: str) -> list[str]:
-    """Retorna os padrões de texto associados a um conceito."""
-    definition = concepts.get(concept_id, [])
-
-    if isinstance(definition, dict):
-        patterns = (
-            definition.get("padroes")
-            or definition.get("patterns")
-            or definition.get("termos")
-            or []
-        )
-    else:
-        patterns = definition
-
-    if isinstance(patterns, str):
-        patterns = [patterns]
-
-    return [
-        str(pattern).strip()
-        for pattern in patterns
-        if str(pattern).strip()
-    ]
-
-
-def _normalized_clauses(text: str) -> list[str]:
-    """Divide o texto em blocos operacionais sem destruir a lógica de normalização."""
-    raw = "" if pd.isna(text) else str(text)
-    chunks = re.split(r"[;\n\r.!?:]+", raw)
-    clauses = [normalize_text(chunk) for chunk in chunks]
-    return [clause for clause in clauses if clause]
-
-
-def _concept_occurrences(
-    text: str,
-    dictionary: dict,
-) -> dict[str, list[dict]]:
-    """Extrai ocorrências de conceitos com posição local e global."""
-    concepts = dictionary.get("conceitos", {})
-    occurrences: dict[str, list[dict]] = {}
-    global_offset = 0
-
-    for clause_index, clause in enumerate(_normalized_clauses(text)):
-        tokens = clause.split()
-
-        for concept_id in concepts:
-            for pattern in _concept_patterns(concepts, concept_id):
-                pattern_tokens = normalize_text(pattern).split()
-                if not pattern_tokens:
-                    continue
-
-                width = len(pattern_tokens)
-                for start in range(max(0, len(tokens) - width + 1)):
-                    if tokens[start:start + width] != pattern_tokens:
-                        continue
-
-                    occurrences.setdefault(concept_id, []).append(
-                        {
-                            "pattern": pattern,
-                            "clause": clause_index,
-                            "start": start,
-                            "end": start + width - 1,
-                            "global_start": global_offset + start,
-                            "global_end": global_offset + start + width - 1,
-                        }
-                    )
-
-        global_offset += len(tokens)
-
-    return occurrences
-
-
-def _concept_requirement_occurrences(
-    requirement,
-    occurrences: dict[str, list[dict]],
-) -> list[dict]:
-    """Obtém ocorrências de qualquer alternativa de um requisito."""
-    items = []
-    for concept_id in _normalize_concept_requirement(requirement):
-        for occurrence in occurrences.get(concept_id, []):
-            items.append(
-                {
-                    **occurrence,
-                    "concept_id": concept_id,
-                }
-            )
-    return items
-
-
-def _coordinated_distinct_targets(
-    text: str,
-    dictionary: dict,
-    max_distance: int = 8,
-) -> bool:
-    """Detecta uma ação explícita aplicada a mais de um grupo de classificação."""
-    occurrences = _active_concept_occurrences(text, dictionary)
-    if not occurrences:
-        return False
-
-    fallback_candidates = _fallback_candidates_from_concepts(
-        occurrences,
-        dictionary,
-    )
-    if not fallback_candidates:
-        return False
-
-    class_by_object = {}
-    for candidate in fallback_candidates:
-        classification = candidate["definition"].get("classificacao")
-        for evidence in candidate["evidence"]:
-            class_by_object[
-                (
-                    evidence["clause"],
-                    evidence["start"],
-                )
-            ] = classification
-
-    # Reconstroi os tokens por cláusula para validar a conjunção entre objetos.
-    clauses = _normalized_clauses(text)
-
-    action_occurrences = []
-    for concept_id, concept_occurrences in occurrences.items():
-        if concept_id.startswith("ACAO_"):
-            action_occurrences.extend(concept_occurrences)
-
-    if not action_occurrences:
-        return False
-
-    all_objects = []
-    for concept_id, concept_occurrences in occurrences.items():
-        if not concept_id.startswith("OBJ_"):
-            continue
-        for occurrence in concept_occurrences:
-            classification = class_by_object.get(
-                (
-                    occurrence["clause"],
-                    occurrence["start"],
-                )
-            )
-            if classification:
-                all_objects.append(
-                    {
-                        **occurrence,
-                        "classification": classification,
-                    }
-                )
-
-    for action in action_occurrences:
-        same_clause = [
-            obj
-            for obj in all_objects
-            if obj["clause"] == action["clause"]
-            and abs(obj["start"] - action["start"]) <= max_distance
-        ]
-
-        if len(same_clause) < 2:
-            continue
-
-        nearest = min(
-            same_clause,
-            key=lambda obj: abs(
-                obj["start"] - action["start"]
-            ),
-        )
-
-        related = [nearest]
-        clause = clauses[action["clause"]]
-        for obj in same_clause:
-            if obj is nearest:
-                continue
-
-            left = min(nearest["start"], obj["start"])
-            right = max(nearest["start"], obj["start"])
-            between = clause.split()[left + 1:right]
-
-            if any(token in {"e", "ou"} for token in between):
-                related.append(obj)
-
-        if len({obj["classification"] for obj in related}) > 1:
-            return True
-
-    return False
-
-
-def _rule_matches_by_local_scope(
-    rule: dict,
-    occurrences: dict[str, list[dict]],
-    max_action_object_distance: int = 8,
-    max_text_distance: int = 80,
-    text: str = "",
-) -> bool:
-    """
-    Avalia uma regra conceitual por escopo determinístico.
-
-    ``local`` (padrão): ação, objeto e contextos ficam no mesmo bloco.
-    ``texto``: conceitos podem aparecer em blocos diferentes, mas ação e objeto
-    ainda precisam estar próximos quando ambos existem.
-
-    Isso permite regras reutilizáveis sem depender de frases completas, mantendo
-    a decisão conservadora para evitar associações acidentais.
-    """
-    requirements = rule.get("requisitos", [])
-    if not requirements:
-        return False
-
-    groups = [
-        _concept_requirement_occurrences(requirement, occurrences)
-        for requirement in requirements
-    ]
-
-    if any(not group for group in groups):
-        return False
-
-    scope = rule.get("escopo", "local")
-    action_indexes = [
-        index
-        for index, requirement in enumerate(requirements)
-        if any(
-            concept_id.startswith("ACAO_")
-            for concept_id in _normalize_concept_requirement(requirement)
-        )
-    ]
-    object_indexes = [
-        index
-        for index, requirement in enumerate(requirements)
-        if any(
-            concept_id.startswith("OBJ_")
-            for concept_id in _normalize_concept_requirement(requirement)
-        )
-    ]
-
-    def same_scope(a: dict, b: dict) -> bool:
-        if scope == "texto":
-            return abs(a["global_start"] - b["global_start"]) <= max_text_distance
-        return a["clause"] == b["clause"]
-
-    # Regra composta apenas de objeto/contexto.
-    if not action_indexes or not object_indexes:
-        anchor_group = groups[0]
-
-        for anchor in anchor_group:
-            ok = True
-            for group in groups[1:]:
-                if not any(same_scope(anchor, occurrence) for occurrence in group):
-                    ok = False
-                    break
-            if ok:
-                return True
-
-        return False
-
-    action_occurrences = []
-    for action_index in action_indexes:
-        action_occurrences.extend(groups[action_index])
-
-    required_object_ids = {
-        concept_id
-        for index in object_indexes
-        for concept_id in _normalize_concept_requirement(requirements[index])
+    extracted: dict[str, set[str]] = {
+        group: set()
+        for group in VOCABULARY_GROUPS
     }
 
-    all_object_occurrences = []
-    for concept_id, concept_occurrences in occurrences.items():
-        if not concept_id.startswith("OBJ_"):
-            continue
-        all_object_occurrences.extend(
-            {**occurrence, "concept_id": concept_id}
-            for occurrence in concept_occurrences
-        )
-
-    for action in action_occurrences:
-        candidates = []
-
-        for obj in all_object_occurrences:
-            if scope == "local":
-                if obj["clause"] != action["clause"]:
-                    continue
-                distance = abs(action["start"] - obj["start"])
-                if distance > max_action_object_distance:
-                    continue
-            else:
-                distance = abs(action["global_start"] - obj["global_start"])
-                if distance > max_text_distance:
-                    continue
-
-            candidates.append((distance, obj))
-
-        if not candidates:
-            continue
-
-        nearest_distance = min(distance for distance, _ in candidates)
-        nearest_objects = [
-            obj
-            for distance, obj in candidates
-            if distance == nearest_distance
-        ]
-
-        associated_objects = list(nearest_objects)
-
-        clause_tokens = _normalized_clauses(text) if text else []
-        current_clause = (
-            clause_tokens[action["clause"]]
-            if action["clause"] < len(clause_tokens)
-            else ""
-        )
-        current_tokens = current_clause.split()
-
-        # Um único verbo pode atuar sobre dois objetos coordenados:
-        # "cancelar NF e boleto". Não usamos apenas distância: entre o alvo
-        # mais próximo e o segundo alvo precisa aparecer uma conjunção.
-        for _, obj in candidates:
-            if obj in associated_objects:
-                continue
-
-            if obj["start"] <= action["start"]:
-                continue
-
-            left = nearest_objects[0]["start"]
-            right = obj["start"]
-            if right - left > max_action_object_distance:
-                continue
-
-            tokens_between = current_tokens[left + 1:right]
-            if any(token in {"e", "ou"} for token in tokens_between):
-                associated_objects.append(obj)
-
-        if not any(
-            obj["concept_id"] in required_object_ids
-            for obj in associated_objects
-        ):
-            continue
-
-        # Contextos/requisitos adicionais devem acompanhar a relação ação +
-        # objeto no mesmo escopo declarado pela regra.
-        for index, group in enumerate(groups):
-            if index in {action_indexes[0], object_indexes[0]}:
-                continue
-
-            if not any(same_scope(action, occurrence) for occurrence in group):
-                break
-        else:
-            return True
-
-    return False
-
-
-def _concept_rule_is_contextual(
-    text: str,
-    rule: dict,
-    occurrences: dict[str, list[dict]],
-) -> bool:
-    """Identifica regras presentes explicitamente como contexto."""
-    markers = ("so contexto", "somente contexto", "apenas contexto")
-    clauses = _normalized_clauses(text)
-    if not clauses:
-        return False
-
-    requirements = rule.get("requisitos", [])
-    groups = [
-        _concept_requirement_occurrences(requirement, occurrences)
-        for requirement in requirements
-    ]
-    if any(not group for group in groups):
-        return False
-
-    for clause_index, clause in enumerate(clauses):
-        marker_positions = [clause.find(marker) for marker in markers if clause.find(marker) >= 0]
-        if not marker_positions:
-            continue
-
-        marker_position = min(marker_positions)
-        prefix = clause[:marker_position]
-
-        # A regra só é contextual quando seus conceitos operacionais
-        # aparecem no próprio bloco imediatamente anterior ao marcador.
-        all_in_clause = True
-        for group in groups:
-            if not any(occurrence["clause"] == clause_index for occurrence in group):
-                all_in_clause = False
-                break
-
-        if not all_in_clause:
-            continue
-
-        for group in groups:
-            if not any(
-                occurrence["clause"] == clause_index
-                and normalize_text(occurrence["pattern"]) in prefix
-                for occurrence in group
+    for group in VOCABULARY_GROUPS:
+        concepts = vocabulary.get(group, {})
+        for concept, aliases in concepts.items():
+            if any(
+                _contains_phrase(normalized_text, alias)
+                for alias in _as_string_list(aliases)
             ):
-                all_in_clause = False
-                break
-
-        if all_in_clause:
-            return True
-
-    return False
-
-
-def _pattern_is_contextual(
-    text: str,
-    pattern: str,
-) -> bool:
-    """Verifica se um padrão textual está no bloco declarado como contexto."""
-    markers = ("so contexto", "somente contexto", "apenas contexto")
-    raw = "" if pd.isna(text) else str(text)
-
-    for chunk in re.split(r"[;\n\r.!?:]+", raw):
-        clause = normalize_text(chunk)
-        if not clause:
-            continue
-
-        positions = [clause.find(marker) for marker in markers if clause.find(marker) >= 0]
-        if not positions:
-            continue
-
-        marker_position = min(positions)
-        prefix = clause[:marker_position]
-        normalized_pattern = normalize_text(pattern.replace("+", " "))
-
-        if normalized_pattern and normalized_pattern in prefix:
-            return True
-
-    return False
-
-
-def extract_concepts(
-    text: str,
-    dictionary: dict,
-) -> dict[str, list[str]]:
-    """
-    Extrai conceitos semânticos do texto de forma determinística.
-
-    O YAML pode declarar:
-
-        conceitos:
-          ACAO_CANCELAR:
-            - cancelar
-            - cancelamento
-          OBJ_NF:
-            - nota fiscal
-            - nf
-
-    O retorno é:
-
-        {
-            "ACAO_CANCELAR": ["cancelar"],
-            "OBJ_NF": ["nf"],
-        }
-
-    Conceitos isolados não geram uma intenção específica. A classificação genérica
-    pode ser usada quando o dicionário declarar um fallback de grupo; intenções
-    específicas continuam dependendo de regras conceituais ou padrões legados.
-    """
-    normalized = normalize_text(text)
-
-    if not normalized:
-        return {}
-
-    concepts = dictionary.get("conceitos", {})
-    extracted: dict[str, list[str]] = {}
-
-    for concept_id in concepts:
-        found = [
-            pattern
-            for pattern in _concept_patterns(concepts, concept_id)
-            if _contains_phrase(normalized, pattern)
-        ]
-
-        if found:
-            extracted[concept_id] = found
+                extracted[group].add(str(concept))
 
     return extracted
 
 
-def _normalize_concept_requirement(requirement) -> list[str]:
-    """
-    Normaliza um requisito de regra.
-
-    Pode ser:
-        - ACAO_CANCELAR
-        - [ACAO_CANCELAR, ACAO_SUBSTITUIR]
-
-    No segundo caso, qualquer um dos conceitos da lista satisfaz
-    o requisito.
-    """
-    if isinstance(requirement, str):
-        return [requirement.strip()] if requirement.strip() else []
-
-    if isinstance(requirement, (list, tuple, set)):
-        return [
-            str(item).strip()
-            for item in requirement
-            if str(item).strip()
-        ]
-
-    return []
-
-
-def _concept_rule_matches(
-    rule: dict,
-    concepts: dict[str, list[str]],
+def _matches_any(
+    actual: set[str],
+    expected: list[str],
 ) -> bool:
-    """Avalia uma regra conceitual contra os conceitos extraídos."""
-    requirements = rule.get("requisitos", [])
+    return bool(set(expected).intersection(actual))
 
-    if not requirements:
-        return False
 
-    for requirement in requirements:
-        alternatives = _normalize_concept_requirement(requirement)
+def _matches_all(
+    actual: set[str],
+    expected: list[str],
+) -> bool:
+    return set(expected).issubset(actual)
 
-        if not alternatives:
-            return False
 
-        if not any(
-            concept_id in concepts
-            for concept_id in alternatives
+def _signature_matches(
+    extracted: dict[str, set[str]],
+    rule: dict[str, Any],
+) -> bool:
+    """Avalia uma assinatura sem score ou probabilidade."""
+    positive_rules = (
+        ("acoes_um_de", "acoes", _matches_any),
+        ("acoes_todas", "acoes", _matches_all),
+        ("objetos_um_de", "objetos", _matches_any),
+        ("objetos_todos", "objetos", _matches_all),
+        ("contextos_um_de", "contextos", _matches_any),
+        ("contextos_todos", "contextos", _matches_all),
+        ("canais_um_de", "canais", _matches_any),
+        ("canais_todos", "canais", _matches_all),
+    )
+
+    for field, group, matcher in positive_rules:
+        expected = _as_string_list(rule.get(field))
+        if expected and not matcher(
+            extracted[group],
+            expected,
         ):
             return False
 
-    # Exclusões podem ser IDs de conceito ou padrões de texto previamente
-    # extraídos. Como a função recebe conceitos, a forma mais segura aqui
-    # é tratar exclusões como IDs de conceito.
-    exclusions = rule.get("exclusoes", [])
+    exclusions = (
+        ("excluir_acoes", "acoes"),
+        ("excluir_objetos", "objetos"),
+        ("excluir_contextos", "contextos"),
+        ("excluir_canais", "canais"),
+    )
 
-    for exclusion in exclusions:
-        if isinstance(exclusion, str) and exclusion.strip() in concepts:
+    for field, group in exclusions:
+        excluded = set(
+            _as_string_list(rule.get(field))
+        )
+        if excluded.intersection(extracted[group]):
             return False
 
-    return True
+    has_positive_condition = any(
+        _as_string_list(rule.get(field))
+        for field, _, _ in positive_rules
+    )
+    return has_positive_condition
 
 
-def _concept_rule_matches_for_text(
+def _signature_specificity(
+    rule: dict[str, Any],
+) -> tuple[int, int, int, int]:
+    """Prioriza ação explícita e maior completude semântica."""
+    action_present = int(
+        bool(_as_string_list(rule.get("acoes_um_de")))
+        or bool(_as_string_list(rule.get("acoes_todas")))
+    )
+    object_present = int(
+        bool(_as_string_list(rule.get("objetos_um_de")))
+        or bool(_as_string_list(rule.get("objetos_todos")))
+    )
+    context_present = int(
+        bool(_as_string_list(rule.get("contextos_um_de")))
+        or bool(_as_string_list(rule.get("contextos_todos")))
+    )
+    channel_present = int(
+        bool(_as_string_list(rule.get("canais_um_de")))
+        or bool(_as_string_list(rule.get("canais_todos")))
+    )
+
+    dimensions = (
+        action_present
+        + object_present
+        + context_present
+        + channel_present
+    )
+    exclusions = sum(
+        len(_as_string_list(rule.get(field)))
+        for field in (
+            "excluir_acoes",
+            "excluir_objetos",
+            "excluir_contextos",
+            "excluir_canais",
+        )
+    )
+    required_all = sum(
+        len(_as_string_list(rule.get(field)))
+        for field in (
+            "acoes_todas",
+            "objetos_todos",
+            "contextos_todos",
+            "canais_todos",
+        )
+    )
+
+    # Ordem determinística: ação explícita, dimensões, condições 'todas', exclusões.
+    return action_present, dimensions, required_all, exclusions
+
+
+def _signature_candidates(
     text: str,
-    dictionary: dict,
-) -> tuple[list[dict], dict[str, list[str]], dict[str, str]]:
-    """
-    Retorna intenções encontradas pelas regras conceituais.
+    dictionary: dict[str, Any],
+) -> tuple[list[dict[str, Any]], dict[str, set[str]]]:
+    extracted = extract_signature(text, dictionary)
+    candidates: list[dict[str, Any]] = []
 
-    Retorno:
-        matches
-        matched_patterns
-        matched_rules
-
-    ``matched_patterns`` usa uma representação legível dos conceitos
-    encontrados, permitindo que a camada existente de precedência/contexto
-    continue funcionando.
-    """
-    concepts = extract_concepts(text, dictionary)
-    occurrences = _concept_occurrences(text, dictionary)
-
-    if not concepts:
-        return [], {}, {}
-
-    intents_by_id = {
-        intent["id"]: intent
-        for intent in dictionary.get("intencoes", [])
-    }
-
-    matches = []
-    matched_patterns: dict[str, list[str]] = {}
-    matched_rules: dict[str, str] = {}
-
-    for rule in dictionary.get("regras_conceituais", []):
-        if not isinstance(rule, dict):
-            continue
-
-        intent_id = rule.get("intencao")
-        if not intent_id or intent_id not in intents_by_id:
-            continue
-
-        if not _rule_matches_by_local_scope(
-            rule,
-            occurrences,
-            text=text,
+    for item in dictionary.get("intencoes", []):
+        for index, signature_rule in enumerate(
+            item.get("assinaturas", []),
+            start=1,
         ):
-            continue
+            if not _signature_matches(
+                extracted,
+                signature_rule,
+            ):
+                continue
 
-        if _concept_rule_is_contextual(text, rule, occurrences):
-            continue
-
-        # A relação entre ação e objeto já foi validada pela camada de
-        # escopo local acima. Aqui só preservamos as exclusões declaradas
-        # pela regra.
-        if any(
-            isinstance(exclusion, str)
-            and exclusion.strip() in concepts
-            for exclusion in rule.get("exclusoes", [])
-        ):
-            continue
-
-        intent = intents_by_id[intent_id]
-
-        if intent_id not in {
-            item["id"]
-            for item in matches
-        }:
-            matches.append(intent)
-
-        requirements = rule.get("requisitos", [])
-        concept_labels = []
-
-        for requirement in requirements:
-            alternatives = _normalize_concept_requirement(requirement)
-            selected = next(
-                (
-                    concept_id
-                    for concept_id in alternatives
-                    if concept_id in concepts
-                ),
-                None,
+            resolved_cause = resolve_intent_cause(
+                intent=item,
+                dictionary=dictionary,
             )
 
-            if selected:
-                concept_labels.append(selected)
-
-        synthetic_pattern = " + ".join(concept_labels)
-
-        if synthetic_pattern:
-            matched_patterns.setdefault(intent_id, []).append(
-                synthetic_pattern
+            candidates.append(
+                {
+                    "id": _clean(item.get("id")),
+                    "intencao": _clean(
+                        item.get("intencao")
+                    ),
+                    "causa_id": resolved_cause[
+                        "causa_id"
+                    ],
+                    "causa": resolved_cause[
+                        "causa_padrao"
+                    ],
+                    "yaml_class": resolved_cause[
+                        "classificacao"
+                    ],
+                    "signature_index": index,
+                    "signature_rule": signature_rule,
+                    "specificity": _signature_specificity(
+                        signature_rule
+                    ),
+                }
             )
 
-        matched_rules.setdefault(
-            intent_id,
-            str(rule.get("id") or intent_id),
-        )
-
-    return matches, matched_patterns, matched_rules
+    return candidates, extracted
 
 
-# ---------------------------------------------------------------------------
-# FALLBACK DE CLASSIFICAÇÃO
-# ---------------------------------------------------------------------------
-
-def _fallback_definitions(
-    dictionary: dict,
-) -> list[dict]:
-    """Retorna os classificadores genéricos declarados no YAML."""
-    return [
-        definition
-        for definition in dictionary.get(
-            "classificacoes_fallback",
-            [],
-        )
-        if isinstance(definition, dict)
+def _pattern_matches(text: str, pattern: str) -> bool:
+    """Suporta frase simples e partes obrigatórias separadas por '+'."""
+    parts = [
+        normalize_text(part)
+        for part in str(pattern).split("+")
     ]
+    parts = [part for part in parts if part]
+    return bool(parts) and all(
+        f" {part} " in f" {text} "
+        for part in parts
+    )
 
 
-def _active_concept_occurrences(
+def _pattern_specificity(
+    pattern: str,
+) -> tuple[int, int]:
+    normalized_parts = [
+        normalize_text(part)
+        for part in str(pattern).split("+")
+    ]
+    normalized_parts = [
+        part
+        for part in normalized_parts
+        if part
+    ]
+    token_count = sum(
+        len(part.split())
+        for part in normalized_parts
+    )
+    return token_count, len(normalized_parts)
+
+
+def _pattern_candidates(
     text: str,
-    dictionary: dict,
-) -> dict[str, list[dict]]:
-    """Retorna apenas conceitos que não aparecem explicitamente como contexto."""
-    occurrences = _concept_occurrences(text, dictionary)
-    clauses = _normalized_clauses(text)
-    markers = ("so contexto", "somente contexto", "apenas contexto")
+    dictionary: dict[str, Any],
+) -> list[dict[str, Any]]:
+    candidates: list[dict[str, Any]] = []
 
-    active: dict[str, list[dict]] = {}
+    for item in dictionary.get("intencoes", []):
+        patterns = _as_string_list(
+            item.get("padroes", [])
+        )
+        exclusions = _as_string_list(
+            item.get("exclusoes", [])
+        )
 
-    for concept_id, concept_occurrences in occurrences.items():
-        for occurrence in concept_occurrences:
-            clause_index = occurrence["clause"]
-            if clause_index >= len(clauses):
-                continue
-
-            clause = clauses[clause_index]
-            marker_tokens = []
-
-            for marker in markers:
-                marker_index = clause.find(marker)
-                if marker_index >= 0:
-                    marker_tokens.append(
-                        len(clause[:marker_index].split())
-                    )
-
-            # Se a ocorrência estiver antes de um marcador de contexto no
-            # próprio bloco, ela é considerada contextual.
-            if marker_tokens and occurrence["start"] < min(marker_tokens):
-                continue
-
-            active.setdefault(
-                concept_id,
-                [],
-            ).append(occurrence)
-
-    return active
-
-
-def _fallback_candidates_from_concepts(
-    active_occurrences: dict[str, list[dict]],
-    dictionary: dict,
-) -> list[dict]:
-    """Encontra classes genéricas sustentadas por conceitos ativos."""
-    candidates = []
-
-    for definition in _fallback_definitions(dictionary):
-        concept_ids = {
-            str(concept_id).strip()
-            for concept_id in definition.get("conceitos", [])
-            if str(concept_id).strip()
-        }
-
-        evidence = []
-        for concept_id in concept_ids:
-            for occurrence in active_occurrences.get(concept_id, []):
-                evidence.append(
-                    {
-                        **occurrence,
-                        "concept_id": concept_id,
-                    }
-                )
-
-        if not evidence:
+        if any(
+            _pattern_matches(text, exclusion)
+            for exclusion in exclusions
+        ):
             continue
+
+        matches = [
+            pattern
+            for pattern in patterns
+            if _pattern_matches(text, pattern)
+        ]
+        if not matches:
+            continue
+
+        best_pattern = max(
+            matches,
+            key=_pattern_specificity,
+        )
+
+        resolved_cause = resolve_intent_cause(
+            intent=item,
+            dictionary=dictionary,
+        )
 
         candidates.append(
             {
-                "definition": definition,
-                "evidence": evidence,
+                "id": _clean(item.get("id")),
+                "intencao": _clean(
+                    item.get("intencao")
+                ),
+                "causa_id": resolved_cause[
+                    "causa_id"
+                ],
+                "causa": resolved_cause[
+                    "causa_padrao"
+                ],
+                "yaml_class": resolved_cause[
+                    "classificacao"
+                ],
+                "patterns": matches,
+                "best_pattern": best_pattern,
+                "specificity": _pattern_specificity(
+                    best_pattern
+                ),
+                "historical_evidence": int(
+                    item.get("evidencias_historicas")
+                    or 0
+                ),
             }
         )
 
     return candidates
 
 
-def _nearest_fallback_class_for_action(
-    action_occurrence: dict,
-    candidates: list[dict],
-    max_distance: int = 8,
-) -> str | None:
-    """Associa uma ação ao objeto genérico mais próximo na mesma cláusula."""
-    nearest = []
-
-    for candidate in candidates:
-        definition = candidate["definition"]
-        classification = definition.get("classificacao")
-
-        for evidence in candidate["evidence"]:
-            if evidence["clause"] != action_occurrence["clause"]:
-                continue
-
-            distance = abs(
-                evidence["start"]
-                - action_occurrence["start"]
-            )
-
-            if distance <= max_distance:
-                nearest.append(
-                    (
-                        distance,
-                        classification,
-                    )
-                )
-
-    if not nearest:
-        return None
-
-    nearest_distance = min(
-        distance
-        for distance, _ in nearest
-    )
-
-    classifications = {
-        classification
-        for distance, classification in nearest
-        if distance == nearest_distance
-    }
-
-    return (
-        next(iter(classifications))
-        if len(classifications) == 1
-        else None
-    )
-
-
-def _generic_classification_fallback(
-    text: str,
-    dictionary: dict,
-) -> dict | None:
-    """
-    Resolve uma classificação oficial sem exigir uma causa específica.
-
-    Regras: 
-        1. Se os conceitos apontarem para uma única classificação, usa essa
-           classificação mesmo sem verbo explícito. Isso permite casos como
-           "boleto", "NF" ou "cobrança".
-        2. Se houver mais de uma classificação, tenta associar uma ação ao
-           objeto/grupo mais próximo na mesma cláusula.
-        3. Se houver mais de uma classificação e nenhuma ação conseguir
-           resolver o alvo, não inventa uma escolha.
-        4. Texto contendo somente vários objetos contextuais, sem ação,
-           permanece sem correspondência em vez de virar ambíguo.
-    """
-    active_occurrences = _active_concept_occurrences(
-        text,
-        dictionary,
-    )
-
-    if not active_occurrences:
-        return None
-
-    candidates = _fallback_candidates_from_concepts(
-        active_occurrences,
-        dictionary,
-    )
-
-    if not candidates:
-        return None
-
-    by_class: dict[str, list[dict]] = {}
-    for candidate in candidates:
-        classification = candidate["definition"].get("classificacao")
-        if classification:
-            by_class.setdefault(classification, []).append(candidate)
-
-    classifications = list(by_class)
-    if not classifications:
-        return None
-
-    action_occurrences = []
-    for concept_id, occurrences in active_occurrences.items():
-        if concept_id.startswith("ACAO_"):
-            action_occurrences.extend(occurrences)
-
-    # Uma única classificação sustentada pelos conceitos é suficiente para
-    # o fallback genérico, mesmo que não exista uma ação explícita.
-    if len(classifications) == 1:
-        selected_class = classifications[0]
-        selected = by_class[selected_class][0]
-        definition = selected["definition"]
-
-        evidence_patterns = [
-            f"{item['concept_id']}: {item['pattern']}"
-            for item in selected["evidence"]
-        ]
-
-        return {
-            "status": "Sugerida",
-            "intencao_id": definition["id"],
-            "intencao_identificada": definition.get(
-                "intencao",
-                definition.get("id"),
-            ),
-            "causa_identificada": list(
-                dict.fromkeys(evidence_patterns)
-            ),
-            "causa_padrao": definition.get("causa_padrao"),
-            "classificacao": selected_class,
-            "regra": definition.get("id"),
-            "candidatas": [definition.get("id")],
-            "ambiguo": False,
-            "origem_classificacao": "fallback_conceitual",
-        }
-
-    # Mais de um grupo só pode ser resolvido quando existe uma ação explícita
-    # que consiga ser associada de forma determinística a um único grupo.
-    if action_occurrences:
-        linked_classes = []
-        for action in action_occurrences:
-            linked = _nearest_fallback_class_for_action(
-                action,
-                candidates,
-            )
-            if linked:
-                linked_classes.append(linked)
-
-        linked_unique = list(dict.fromkeys(linked_classes))
-
-        if len(linked_unique) == 1:
-            selected_class = linked_unique[0]
-            selected = by_class[selected_class][0]
-            definition = selected["definition"]
-
-            evidence_patterns = [
-                f"{item['concept_id']}: {item['pattern']}"
-                for item in selected["evidence"]
-            ]
-
-            return {
-                "status": "Sugerida",
-                "intencao_id": definition["id"],
-                "intencao_identificada": definition.get(
-                    "intencao",
-                    definition.get("id"),
-                ),
-                "causa_identificada": list(
-                    dict.fromkeys(evidence_patterns)
-                ),
-                "causa_padrao": definition.get("causa_padrao"),
-                "classificacao": selected_class,
-                "regra": definition.get("id"),
-                "candidatas": [definition.get("id")],
-                "ambiguo": False,
-                "origem_classificacao": "fallback_conceitual",
-            }
-
-        # Há múltiplos grupos e uma ou mais ações, mas nenhuma associação
-        # determinística suficiente. Mantém a ambiguidade explícita.
-        return {
-            "status": "Ambígua",
-            "intencao_id": None,
-            "intencao_identificada": None,
-            "causa_identificada": [],
-            "causa_padrao": None,
-            "classificacao": None,
-            "regra": None,
-            "candidatas": [
-                candidate["definition"].get("id")
-                for candidate in candidates
-                if candidate["definition"].get("id")
-            ],
-            "ambiguo": True,
-            "classificacoes": classifications,
-            "origem_classificacao": "fallback_conceitual",
-        }
-
-    # Vários grupos, mas nenhum pedido operacional explícito. Não é
-    # ambiguidade operacional; é apenas informação contextual insuficiente.
-    return None
-
-
-# ---------------------------------------------------------------------------
-# PRECEDÊNCIA / CONTEXTO
-# ---------------------------------------------------------------------------
-
-def _pattern_is_explicit_action(
-    pattern: str,
-) -> bool:
-    """
-    Identifica padrões que representam uma ação operacional explícita.
-
-    Exemplos:
-        cancelar nf
-        cancelar contrato
-        corrigir boleto
-        alterar vencimento
-        prorrogar pagamento
-        consultar pagamentos
-    """
-
-    normalized = normalize_text(
-        pattern
-    )
-
-    if normalized.startswith("acao ") or " acao " in f" {normalized} ":
-        return True
-
-    action_markers = (
-        "cancelar",
-        "cancelamento",
-        "encerrar",
-        "encerramento",
-        "reemitir",
-        "reemissao",
-        "substituir",
-        "substituicao",
-        "prorrogar",
-        "prorrogacao",
-        "alterar",
-        "alteracao",
-        "enviar",
-        "reenvio",
-        "solicitar",
-        "solicitacao",
-        "corrigir",
-        "correcao",
-        "incluir",
-        "trocar",
-        "mudando",
-        "congelar",
-        "congelamento",
-        "renovacao",
-        "confirmar",
-        "consultar",
-        "consulta",
-        "verificar",
-        "esclarecer",
-        "entender",
-        "contestar",
-        "contestacao",
-    )
-
-    return any(
-        marker in normalized
-        for marker in action_markers
-    )
-
-
-def _remove_contextual_matches(
-    matches: list[dict],
-    matched_patterns: dict[str, list[str]],
-    text: str,
-) -> list[dict]:
-    """
-    Remove uma intenção quando o próprio texto informa que ela
-    aparece apenas como contexto.
-
-    Exemplo:
-        congelar o contrato; cancelamento de notas é só contexto
-    """
-
-    normalized_text = normalize_text(text)
-
-    context_markers = (
-        "so contexto",
-        "somente contexto",
-        "apenas contexto",
-    )
-
-    contextual_ids = set()
-
-    for marker in context_markers:
-        marker_position = normalized_text.find(marker)
-
-        if marker_position < 0:
-            continue
-
-        # Tudo que aparece antes de "só contexto" pode ser
-        # a informação explicitamente tratada como contexto.
-        prefix = normalized_text[:marker_position]
-
-        for intent in matches:
-            intent_id = intent["id"]
-
-            for pattern in matched_patterns.get(
-                intent_id,
-                [],
-            ):
-                normalized_pattern = normalize_text(
-                    pattern.replace("+", " ")
-                )
-
-                if not normalized_pattern:
-                    continue
-
-                if normalized_pattern in prefix:
-                    contextual_ids.add(intent_id)
-
-                elif _pattern_is_contextual(
-                    text,
-                    pattern,
-                ):
-                    contextual_ids.add(intent_id)
-
-    if not contextual_ids:
-        return matches
-
-    remaining = [
-        intent
-        for intent in matches
-        if intent["id"] not in contextual_ids
-    ]
-
-    return remaining or matches
-
-
-def _apply_precedence(
-    matches: list[dict],
-    dictionary: dict,
-    matched_patterns: dict[str, list[str]] | None = None,
-    text: str = "",
-) -> list[dict]:
-    """Aplica precedência determinística e preserva conflitos sem regra."""
-
-    if not matches:
-        return matches
-
-    matched_patterns = matched_patterns or {}
-
-    matches = _remove_contextual_matches(
-        matches,
-        matched_patterns,
-        text,
-    )
-
-    # Se uma mesma ação foi aplicada a objetos coordenados de grupos
-    # diferentes, existe mais de um alvo operacional real. Precedência não
-    # deve esconder um dos alvos e transformar o pedido em falso singular.
-    if _coordinated_distinct_targets(text, dictionary):
-        return matches
-
-    # Primeiro resolve precedências documentadas no YAML. Isso é importante
-    # quando duas ações de classes diferentes aparecem no mesmo pedido, mas o
-    # próprio dicionário documenta qual intenção domina.
-    remaining = {
-        intent["id"]: intent
-        for intent in matches
-    }
-
-    for rule in dictionary.get("precedencia", []):
-        preferred = rule.get("preferir")
-        if preferred not in remaining:
-            continue
-
-        for lower_priority in rule.get("sobre", []):
-            remaining.pop(lower_priority, None)
-
-    matches = list(remaining.values())
-
-    if len(matches) <= 1:
-        return matches
-
-    normalized_text = normalize_text(text)
-    context_markers = (
-        "so contexto",
-        "somente contexto",
-        "apenas contexto",
-    )
-    has_context_marker = any(
-        marker in normalized_text
-        for marker in context_markers
-    )
-
-    # Depois da precedência, duas intenções explícitas de classes diferentes
-    # continuam sendo conflito real -> ambígua.
-    explicit_intents = []
-    for intent in matches:
-        patterns = matched_patterns.get(intent["id"], [])
-        if any(
-            _pattern_is_explicit_action(pattern)
-            for pattern in patterns
-        ):
-            explicit_intents.append(intent)
-
-    if len(explicit_intents) > 1 and not has_context_marker:
-        classes = {
-            intent.get("classificacao")
-            for intent in explicit_intents
-        }
-        if len(classes) > 1:
-            return matches
-
-    # Uma única ação explícita pode desempatar múltiplas evidências da mesma
-    # classe, sem inventar uma escolha entre classes diferentes.
-    if len(explicit_intents) == 1:
-        return explicit_intents
-
-    return matches
-
-
-# ---------------------------------------------------------------------------
-# IDENTIFICAÇÃO DA INTENÇÃO
-# ---------------------------------------------------------------------------
-
-def identify_intent(
-    description,
-    dictionary: dict | None = None,
-) -> dict:
-    """Encontra intenções explícitas e deixa conflitos reais sem escolha arbitrária."""
-
-    dictionary = (
-        dictionary
-        or load_dictionary()
-    )
-
-    text = normalize_text(
-        description
-    )
-
-    if not text:
-        return {
-            "status": "Sem correspondência",
-            "intencao_id": None,
-            "intencao_identificada": None,
-            "causa_identificada": [],
-            "causa_padrao": None,
-            "classificacao": None,
-            "regra": None,
-            "candidatas": [],
-            "ambiguo": False,
-        }
-
-    matches = []
-    matched_patterns: dict[str, list[str]] = {}
-    matched_rules: dict[str, str] = {}
-
-    # ------------------------------------------------------------------
-    # 1. REGRAS CONCEITUAIS
-    # ------------------------------------------------------------------
-    conceptual_matches, conceptual_patterns, conceptual_rules = (
-        _concept_rule_matches_for_text(
-            text,
-            dictionary,
-        )
-    )
-
-    for intent in conceptual_matches:
-        intent_id = intent["id"]
-        matches.append(intent)
-        matched_patterns[intent_id] = list(
-            conceptual_patterns.get(
-                intent_id,
-                [],
-            )
-        )
-        matched_rules[intent_id] = conceptual_rules.get(
-            intent_id,
-            intent_id,
-        )
-
-    # ------------------------------------------------------------------
-    # 2. PADRÕES LEGADOS
-    # ------------------------------------------------------------------
-    for intent in dictionary["intencoes"]:
-        found = [
-            pattern
-            for pattern in intent.get(
-                "padroes",
-                [],
-            )
-            if _matches_pattern(
-                text,
-                pattern,
-            )
-        ]
-
-        if not found:
-            continue
-
-        if any(
-            _matches_pattern(
-                text,
-                excluded,
-            )
-            for excluded in intent.get(
-                "exclusoes",
-                [],
-            )
-        ):
-            continue
-
-        intent_id = intent["id"]
-
-        if intent_id not in {
-            item["id"]
-            for item in matches
-        }:
-            matches.append(intent)
-
-        # Quando existe padrão legado explícito para a mesma intenção,
-        # ele é a evidência textual principal. O conceito continua sendo
-        # usado para decisão, mas não polui a saída operacional.
-        matched_patterns[intent_id] = found
-
-        matched_rules.setdefault(
-            intent_id,
-            intent_id,
-        )
-
-    # IMPORTANTE:
-    # a variável correta é "matches".
-    # O resultado da precedência precisa substituir
-    # a lista original de matches.
-    matches = _apply_precedence(
-        matches,
-        dictionary,
-        matched_patterns,
-        text,
-    )
-
-    if not matches:
-        fallback = _generic_classification_fallback(
-            text,
-            dictionary,
-        )
-
-        if fallback is not None:
-            return fallback
-
-        return {
-            "status": "Sem correspondência",
-            "intencao_id": None,
-            "intencao_identificada": None,
-            "causa_identificada": [],
-            "causa_padrao": None,
-            "classificacao": None,
-            "regra": None,
-            "candidatas": [],
-            "ambiguo": False,
-        }
-
-    causes = list(
-        dict.fromkeys(
-            intent["causa_padrao"]
-            for intent in matches
-        )
-    )
-
-    classes = list(
-        dict.fromkeys(
-            intent["classificacao"]
-            for intent in matches
-        )
-    )
-
-    unique_cause = (
-        len(causes) == 1
-    )
-
-    unique_class = (
-        len(classes) == 1
-    )
-
-    status = (
-        "Sugerida"
-        if unique_cause
-        and unique_class
-        else "Ambígua"
-    )
-
-    selected = (
-        matches[0]
-        if unique_cause
-        else None
-    )
-
-    matched = []
-    seen_patterns = set()
-
-    for intent in matches:
-        for pattern in matched_patterns.get(
-            intent["id"],
-            [],
-        ):
-            normalized_pattern = normalize_text(
-                pattern.replace(
-                    "+",
-                    " ",
-                )
-            )
-
-            if normalized_pattern in seen_patterns:
-                continue
-
-            seen_patterns.add(
-                normalized_pattern
-            )
-
-            matched.append(
-                pattern
-            )
-
+def _empty_result(
+    reason_code: str,
+    status: str = STATUS_UNMATCHED,
+) -> dict[str, Any]:
     return {
         "status": status,
-        "intencao_id": (
-            selected["id"]
-            if selected
-            else None
-        ),
-        "intencao_identificada": "; ".join(
-            dict.fromkeys(
-                intent["intencao"]
-                for intent in matches
-            )
-        ),
-        "causa_identificada": matched,
-        "causa_padrao": (
-            causes[0]
-            if unique_cause
-            else None
-        ),
-        "classificacao": (
-            classes[0]
-            if unique_class
-            else None
-        ),
-        "regra": (
-            matched_rules.get(
-                selected["id"],
-                selected["id"],
-            )
-            if selected
-            else None
-        ),
-        "candidatas": [
-            intent["id"]
-            for intent in matches
-        ],
-        "ambiguo": status == "Ambígua",
+        "intencao_id": None,
+        "intencao_identificada": None,
+        "causa_identificada": [],
+        "causa_id": None,
+        "causa_padrao": None,
+        "causa_canonica": None,
+        "classificacao": None,
+        "regra": None,
+        "candidatas": [],
+        "ambiguo": status == STATUS_AMBIGUOUS,
+        "reason_code": reason_code,
     }
 
 
-# ---------------------------------------------------------------------------
-# COMPATIBILIDADE
-# ---------------------------------------------------------------------------
+def _canonical_evidence(
+    extracted: dict[str, set[str]],
+) -> list[str]:
+    labels = {
+        "acoes": "ACAO",
+        "objetos": "OBJETO",
+        "contextos": "CONTEXTO",
+        "canais": "CANAL",
+    }
+    evidence: list[str] = []
+    for group in VOCABULARY_GROUPS:
+        for concept in sorted(extracted[group]):
+            evidence.append(
+                f"{labels[group]}:{concept}"
+            )
+    return evidence
 
-def identify_cause(
-    description,
-    rules=None,
-) -> dict:
-    """Alias de compatibilidade para o passo novo de identificação da intenção."""
-    return identify_intent(
-        description,
-        _dictionary_from_rules(rules),
-    )
 
-
-def _dictionary_from_rules(
-    rules=None,
-) -> dict:
-    if rules is None:
-        return load_dictionary()
-
-    if (
-        isinstance(rules, dict)
-        and "intencoes" in rules
-    ):
-        return rules
-
-    intents = (
-        list(rules.values())
-        if isinstance(rules, dict)
-        else list(rules)
-    )
-
-    base = load_dictionary()
+def _result_from_candidate(
+    candidate: dict[str, Any],
+    evidence: list[str],
+    reason_code: str,
+) -> dict[str, Any]:
+    classification = candidate.get("yaml_class") or None
+    if classification is None:
+        return _empty_result(REASON_NO_CLASS)
 
     return {
-        **base,
-        "intencoes": intents,
-    }
-
-
-# ---------------------------------------------------------------------------
-# CAUSA CANÔNICA
-# ---------------------------------------------------------------------------
-
-def normalize_root_cause(
-    identified: dict,
-    dictionary: dict | None = None,
-) -> dict:
-    """Resolve a causa padrão no dicionário e deriva dela a classe oficial."""
-
-    dictionary = (
-        dictionary
-        or load_dictionary()
-    )
-
-    cause = identified.get(
-        "causa_padrao"
-    )
-
-    class_by_cause = {
-        intent["causa_padrao"]:
-            intent["classificacao"]
-        for intent in dictionary["intencoes"]
-    }
-
-    for fallback in dictionary.get(
-        "classificacoes_fallback",
-        [],
-    ):
-        if not isinstance(fallback, dict):
-            continue
-        fallback_cause = fallback.get("causa_padrao")
-        classification = fallback.get("classificacao")
-        if fallback_cause and classification:
-            class_by_cause[fallback_cause] = classification
-
-    return {
-        "causa_canonica": cause,
-        "classificacao": class_by_cause.get(
-            cause,
-            identified.get(
-                "classificacao"
-            ),
+        "status": STATUS_SUGGESTED,
+        "intencao_id": candidate["id"],
+        "intencao_identificada": candidate["intencao"],
+        "causa_identificada": evidence,
+        "causa_id": (
+            candidate.get("causa_id")
+            or None
         ),
+        "causa_padrao": candidate["causa"],
+        "causa_canonica": candidate["causa"],
+        "classificacao": classification,
+        "regra": candidate["id"],
+        "candidatas": [candidate["id"]],
+        "ambiguo": False,
+        "reason_code": reason_code,
     }
 
 
-# ---------------------------------------------------------------------------
-# API PRINCIPAL
-# ---------------------------------------------------------------------------
+def _consolidate_candidates(
+    candidates: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Mantém uma candidata por intenção, escolhendo sua melhor evidência."""
+    by_id: dict[str, dict[str, Any]] = {}
+    for candidate in candidates:
+        intent_id = candidate["id"]
+        current = by_id.get(intent_id)
+        if current is None or candidate["specificity"] > current["specificity"]:
+            by_id[intent_id] = candidate
+    return list(by_id.values())
+
+
+def _select_candidate(
+    candidates: list[dict[str, Any]],
+    use_historical_evidence: bool = False,
+) -> tuple[dict[str, Any] | None, list[str]]:
+    candidates = _consolidate_candidates(candidates)
+    if not candidates:
+        return None, []
+
+    def rank(item: dict[str, Any]) -> tuple[Any, ...]:
+        base = (item["specificity"],)
+        if use_historical_evidence:
+            return (*base, int(item.get("historical_evidence") or 0))
+        return base
+
+    candidates.sort(key=rank, reverse=True)
+    best = candidates[0]
+    best_rank = rank(best)
+    tied = [
+        item
+        for item in candidates[1:]
+        if rank(item) == best_rank
+        and item["causa"] != best["causa"]
+    ]
+
+    if not tied:
+        return best, []
+
+    candidate_ids = list(dict.fromkeys([
+        best["id"],
+        *[item["id"] for item in tied],
+    ]))
+    return None, candidate_ids
+
 
 def classify(
-    description,
-    rules=None,
-    taxonomy=None,
-) -> dict:
-    """Descrição -> intenção -> causa padrão -> classificação oficial."""
+    description: Any,
+    rules: dict[str, Any] | None = None,
+    taxonomy: dict[str, str] | None = None,
+    history: pd.DataFrame | None = None,
+) -> dict[str, Any]:
+    """Classifica por assinatura e usa padrões atuais como fallback."""
+    del taxonomy, history
 
-    dictionary = _dictionary_from_rules(
+    dictionary = (
         rules
+        if isinstance(rules, dict)
+        and "intencoes" in rules
+        else load_dictionary()
     )
+    text = prepare_classification_text(description)
 
-    identified = identify_intent(
-        description,
+    if not text:
+        return _empty_result(REASON_EMPTY_TEXT)
+
+    signature_candidates, extracted = _signature_candidates(
+        text,
         dictionary,
     )
-
-    normalized = normalize_root_cause(
-        identified,
-        dictionary,
+    signature_match, signature_ties = _select_candidate(
+        signature_candidates
     )
 
+    if signature_ties:
+        result = _empty_result(
+            REASON_AMBIGUOUS,
+            STATUS_AMBIGUOUS,
+        )
+        result["candidatas"] = signature_ties
+        result["causa_identificada"] = (
+            _canonical_evidence(extracted)
+        )
+        return result
+
+    if signature_match:
+        return _result_from_candidate(
+            candidate=signature_match,
+            evidence=_canonical_evidence(extracted),
+            reason_code=REASON_CLASSIFIED_SIGNATURE,
+        )
+
+    pattern_candidates = _pattern_candidates(
+        text,
+        dictionary,
+    )
+    pattern_match, pattern_ties = _select_candidate(
+        pattern_candidates,
+        use_historical_evidence=True,
+    )
+
+    if pattern_ties:
+        result = _empty_result(
+            REASON_AMBIGUOUS,
+            STATUS_AMBIGUOUS,
+        )
+        result["candidatas"] = pattern_ties
+        return result
+
+    if pattern_match:
+        return _result_from_candidate(
+            candidate=pattern_match,
+            evidence=pattern_match["patterns"],
+            reason_code=REASON_CLASSIFIED_PATTERN,
+        )
+
+    return _empty_result(REASON_NO_PATTERN)
+
+
+def identify_intent(
+    description: Any,
+    dictionary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return classify(description, rules=dictionary)
+
+
+def identify_cause(
+    description: Any,
+    rules: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    return classify(description, rules=rules)
+
+
+def normalize_root_cause(
+    identified: dict[str, Any],
+    dictionary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    del dictionary
     return {
-        **identified,
-        **normalized,
+        "causa_canonica": identified.get(
+            "causa_padrao"
+        ),
+        "classificacao": identified.get(
+            "classificacao"
+        ),
     }
 
 
 def suggest(
-    description,
-    rules=None,
-    taxonomy=None,
-    objects: dict | None = None,
-    stats: dict | None = None,
-) -> dict:
-    """Retorna uma classificação explicável; não pontua nem escolhe por score."""
-
+    description: Any,
+    rules: dict[str, Any] | None = None,
+    taxonomy: dict[str, str] | None = None,
+    objects: dict[str, Any] | None = None,
+    stats: dict[str, Any] | None = None,
+    history: pd.DataFrame | None = None,
+) -> dict[str, Any]:
+    del stats
     found = classify(
         description,
-        rules,
-        taxonomy,
+        rules=rules,
+        taxonomy=taxonomy,
+        history=history,
     )
-
-    objects = (
-        objects
-        or load_objects()
-    )
-
-    classification = found[
-        "classificacao"
-    ]
-
+    objects = objects or load_objects()
+    classification = found.get("classificacao")
     return {
         **found,
         "objeto_operacional": objects.get(
             classification
         ),
         "confianca": None,
-        "motivo": found.get(
-            "intencao_identificada"
-        ) or found.get(
-            "causa_padrao"
-        ) or found.get(
-            "classificacao"
+        "motivo": (
+            found.get("causa_padrao")
+            or found.get("reason_code")
         ),
     }
 
@@ -2045,94 +1192,67 @@ def build_suggestions(
     descriptions: pd.Series,
     history: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
-    """Classifica Descrição detalhada; history fica na assinatura por compatibilidade."""
-
+    """Interface mantida para o backfill e o main.py."""
     dictionary = load_dictionary()
     objects = load_objects()
-
     rows = [
         suggest(
             description,
-            dictionary,
+            rules=dictionary,
             objects=objects,
+            history=history,
         )
         for description in descriptions
     ]
-
     return pd.DataFrame(
         rows,
         index=descriptions.index,
     )
 
 
-# ---------------------------------------------------------------------------
-# AVALIAÇÃO HISTÓRICA
-# ---------------------------------------------------------------------------
-
 def evaluate(
     history: pd.DataFrame,
-    dictionary: dict | None = None,
-) -> dict:
-    """Compara classes sugeridas com as classes históricas, sem score nem treino."""
-
-    dictionary = _dictionary_from_rules(
-        dictionary
-    )
-
-    rows = []
+    dictionary: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    dictionary = dictionary or load_dictionary()
+    rows: list[dict[str, Any]] = []
 
     for _, record in history.iterrows():
-        actual = record.get(
-            "Classificação"
+        actual = _clean(
+            record.get("Classificação")
         )
-
-        if (
-            pd.isna(actual)
-            or not str(actual).strip()
-            or str(actual).strip() == "#N/A"
-        ):
+        if not actual or actual == "#N/A":
             continue
 
         result = classify(
-            record.get(
-                "Descrição detalhada"
-            ),
-            dictionary,
+            record.get("Descrição detalhada"),
+            rules=dictionary,
         )
-
         rows.append(
             {
-                "real": str(actual).strip(),
-                "motor": result[
+                "real": actual,
+                "motor": result.get(
                     "classificacao"
-                ],
-                "status": result[
-                    "status"
-                ],
-                "intencao": result[
+                ),
+                "status": result.get("status"),
+                "intencao": result.get(
                     "intencao_id"
-                ],
+                ),
             }
         )
 
     frame = pd.DataFrame(
-        rows
+        rows,
+        columns=[
+            "real",
+            "motor",
+            "status",
+            "intencao",
+        ],
     )
-
-    if frame.empty:
-        frame = pd.DataFrame(
-            columns=[
-                "real",
-                "motor",
-                "status",
-                "intencao",
-            ]
-        )
-
     answered = frame[
         frame["motor"].notna()
     ]
-
     correct = int(
         (
             answered["real"]
@@ -2146,121 +1266,64 @@ def evaluate(
         "sem_correspondencia": int(
             (
                 frame["status"]
-                == "Sem correspondência"
+                == STATUS_UNMATCHED
             ).sum()
         ),
         "ambiguos": int(
             (
                 frame["status"]
-                == "Ambígua"
+                == STATUS_AMBIGUOUS
             ).sum()
         ),
         "acertos": correct,
         "acuracia_entre_respostas": (
-            round(
-                correct
-                / len(answered),
-                4,
-            )
+            round(correct / len(answered), 4)
             if len(answered)
             else None
         ),
-        "por_classificacao": {
-            name: {
-                "total": int(
-                    (
-                        frame["real"]
-                        == name
-                    ).sum()
-                ),
-                "respondidos": int(
-                    (
-                        answered["motor"]
-                        == name
-                    ).sum()
-                ),
-                "corretos": int(
-                    (
-                        (
-                            answered["real"]
-                            == name
-                        )
-                        & (
-                            answered["motor"]
-                            == name
-                        )
-                    ).sum()
-                ),
-            }
-            for name in sorted(
-                frame["real"].unique()
-            )
-        },
     }
 
 
-# ---------------------------------------------------------------------------
-# CLI
-# ---------------------------------------------------------------------------
-
 def main() -> None:
     dictionary = load_dictionary()
+    problems = validate_dictionary(dictionary)
 
-    history = load_compilado_sheet(
-        TEMPLATE_PATH
+    intent_count = len(
+        dictionary["intencoes"]
     )
 
-    result = evaluate(
-        history,
-        dictionary,
+    canonical_cause_count = len(
+        dictionary.get("causas", {})
     )
 
-    answered = result[
-        "com_resposta"
-    ]
-
-    print(
-        f"Intenções no dicionário: "
-        f"{len(dictionary['intencoes'])}"
+    cause_alias_count = len(
+        dictionary.get("aliases_causas", {})
     )
 
-    print(
-        f"Históricos avaliados: "
-        f"{result['total']}"
+    signature_count = sum(
+        len(item.get("assinaturas", []))
+        for item in dictionary["intencoes"]
     )
 
     print(
-        f"Cobertura: "
-        f"{answered}/{result['total']}"
+        f"Intenções no dicionário: {intent_count}"
     )
-
     print(
-        f"Sem correspondência: "
-        f"{result['sem_correspondencia']}"
+        f"Causas canônicas: {canonical_cause_count}"
     )
-
     print(
-        f"Ambíguos: "
-        f"{result['ambiguos']}"
+        f"Aliases de causas: {cause_alias_count}"
     )
-
-    if answered:
-        print(
-            f"Acerto de classe no histórico: "
-            f"{result['acertos']}/{answered} "
-            f"({result['acuracia_entre_respostas']:.1%})"
-        )
-
     print(
-        "\nPor classificação "
-        "(total | respondidos | corretos):"
+        f"Assinaturas no dicionário: {signature_count}"
+    )
+    print(
+        f"Problemas no dicionário: {len(problems)}"
     )
 
-    for name, data in result[
-        "por_classificacao"
-    ].items():
-        print(
-            f"  {data['total']:>4} | "
-            f"{data['respondidos']:>4} | "
-            f"{data['corretos']:>4}"
-        )
+    for problem in problems:
+        print(f"- {problem}")
+
+
+if __name__ == "__main__":
+    main()
