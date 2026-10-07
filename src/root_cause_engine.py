@@ -843,18 +843,32 @@ def _signature_candidates(
     return candidates, extracted
 
 
-def _pattern_matches(text: str, pattern: str) -> bool:
-    """Suporta frase simples e partes obrigatórias separadas por '+'."""
+def _pattern_matches(
+    text: str,
+    pattern: str,
+) -> bool:
+    """Verifica frases e padrões compostos separados por '+'."""
+    normalized_text = normalize_text(text)
+
     parts = [
         normalize_text(part)
         for part in str(pattern).split("+")
     ]
-    parts = [part for part in parts if part]
-    return bool(parts) and all(
-        f" {part} " in f" {text} "
-        for part in parts
-    )
 
+    parts = [
+        part
+        for part in parts
+        if part
+    ]
+
+    if not normalized_text or not parts:
+        return False
+
+    for part in parts:
+        if part not in normalized_text:
+            return False
+
+    return True
 
 def _pattern_specificity(
     pattern: str,

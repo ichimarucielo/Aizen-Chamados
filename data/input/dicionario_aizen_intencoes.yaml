@@ -78,6 +78,58 @@ causas:
     nome: Encaminhamento comercial
     classificacao: Atendimento Administrativo e Suporte
 
+  DUPLICIDADE_COBRANCA:
+    nome: Duplicidade de cobrança
+    classificacao: Cobrança e Contestação
+
+  NEGOCIACAO_INADIMPLENCIA:
+    nome: Negociação de inadimplência
+    classificacao: Cobrança e Contestação
+
+  REENVIO_NF:
+    nome: Reenvio de NF
+    classificacao: Faturamento e Obrigações Fiscais
+
+  ALTERACAO_DATA_EMISSAO_NF:
+    nome: Alteração de data de emissão da NF
+    classificacao: Cancelamento e Reemissão de Nota Fiscal
+
+  CANCELAMENTO_BOLETO:
+    nome: Cancelamento de boleto
+    classificacao: Pagamentos, Boletos e Recebimentos
+
+  CORRECAO_CODIGO_NF:
+    nome: Correção de código da NF
+    classificacao: Cancelamento e Reemissão de Nota Fiscal
+
+  REEMISSAO_NF_PO:
+    nome: Reemissão de NF com PO
+    classificacao: Cancelamento e Reemissão de Nota Fiscal
+
+  CANCELAMENTO_CONTRATO:
+    nome: Cancelamento de contrato
+    classificacao: Contratos, Comercial e Cadastro
+
+  NF_VINCULADA_BOLETO:
+    nome: NF vinculada a boleto em aberto
+    classificacao: Pagamentos, Boletos e Recebimentos
+
+  CONGELAMENTO_CONTRATO:
+    nome: Congelamento de contrato
+    classificacao: Contratos, Comercial e Cadastro
+
+  INFORMACAO_CONTRATUAL:
+    nome: Informação contratual/comercial
+    classificacao: Contratos, Comercial e Cadastro
+
+  ENCERRAMENTO_SEM_ACAO:
+    nome: Encerramento sem ação
+    classificacao: Atendimento Administrativo e Suporte
+
+  DUVIDA_FATURAMENTO:
+    nome: Dúvida sobre faturamento
+    classificacao: Faturamento e Obrigações Fiscais
+
 
 aliases_causas:
   Ajuste de cobrança / faturamento: CONTESTACAO_COBRANCA
@@ -127,6 +179,44 @@ aliases_causas:
   Cliente reclamando da integração do produto, direcionei para a fila do comercial: ENCAMINHAMENTO_COMERCIAL
   Encaminhamento comercial: ENCAMINHAMENTO_COMERCIAL
 
+  Duplicidade de cobrança: DUPLICIDADE_COBRANCA
+  Negociação de inadimplência: NEGOCIACAO_INADIMPLENCIA
+
+  Reenvio de NF: REENVIO_NF
+  Reenvio de nota fiscal: REENVIO_NF
+
+  Alteração de data de emissão da NF: ALTERACAO_DATA_EMISSAO_NF
+  Alterar data de emissão da NF: ALTERACAO_DATA_EMISSAO_NF
+
+  Cancelamento de boleto: CANCELAMENTO_BOLETO
+  Baixa de boleto: CANCELAMENTO_BOLETO
+
+  Correção de código da NF: CORRECAO_CODIGO_NF
+  Correção de código da nota fiscal: CORRECAO_CODIGO_NF
+
+  Reemissão de NF com PO: REEMISSAO_NF_PO
+  Substituição de NF com PO: REEMISSAO_NF_PO
+
+  Cancelamento de contrato: CANCELAMENTO_CONTRATO
+  Cancelamento de produto: CANCELAMENTO_CONTRATO
+  Cancelamento de serviço: CANCELAMENTO_CONTRATO
+
+  NF vinculada a boleto em aberto: NF_VINCULADA_BOLETO
+  Nota fiscal vinculada a boleto em aberto: NF_VINCULADA_BOLETO
+
+  Congelamento de contrato: CONGELAMENTO_CONTRATO
+  Suspensão temporária de contrato: CONGELAMENTO_CONTRATO
+
+  Informação contratual/comercial: INFORMACAO_CONTRATUAL
+  Dúvida contratual/comercial: INFORMACAO_CONTRATUAL
+  Dúvida sobre contrato: INFORMACAO_CONTRATUAL
+
+  Encerramento sem ação: ENCERRAMENTO_SEM_ACAO
+  Encerramento sem atuação: ENCERRAMENTO_SEM_ACAO
+
+  Dúvida sobre faturamento: DUVIDA_FATURAMENTO
+  Verificação de faturamento: DUVIDA_FATURAMENTO
+  Informações sobre faturamento: DUVIDA_FATURAMENTO
 
 vocabulario:
   acoes:
@@ -170,6 +260,14 @@ vocabulario:
       - não reconheço
       - não reconhecemos
 
+    ESTORNAR:
+      - estornar
+      - estorno
+      - reembolsar
+      - reembolso
+      - devolver valor
+      - devolução financeira
+
     CONSULTAR:
       - consultar
       - verificar
@@ -177,6 +275,20 @@ vocabulario:
       - confirmar
       - entender
       - esclarecer
+
+    PO:
+      - po
+      - p.o
+      - pedido de compra
+      - ordem de compra
+
+    SUSPENDER:
+      - suspender
+      - suspensão
+      - congelar
+      - congelamento
+      - pausar
+      - pausa temporária
 
   objetos:
     NOTA_FISCAL:
@@ -211,6 +323,20 @@ vocabulario:
     SETUP:
       - setup
       - taxa de setup
+
+    PO:
+      - po
+      - p.o
+      - pedido de compra
+      - ordem de compra
+
+    SUSPENDER:
+      - suspender
+      - suspensão
+      - congelar
+      - congelamento
+      - pausar
+      - pausa temporária
 
   contextos:
     DUPLICIDADE:
@@ -258,11 +384,18 @@ vocabulario:
       - conta bancária
       - retirar do banco
 
+    PO:
+      - po
+      - p.o
+      - pedido de compra
+      - ordem de compra
+
 intencoes:
 - id: INT_NF_CANCEL_REEMISSAO
   intencao: Cancelar, substituir ou reemitir nota fiscal.
   causa_padrao: Cancelamento/Reemissão de Nota Fiscal
   classificacao: Cancelamento e Reemissão de Nota Fiscal
+  causa_id: CANCELAMENTO_NF
   evidencias_historicas: 143
 
   assinaturas:
@@ -396,6 +529,7 @@ intencoes:
   intencao: Alterar a data de emissão da nota fiscal.
   causa_padrao: Alteração de Data de Emissão da NF
   classificacao: Cancelamento e Reemissão de Nota Fiscal
+  causa_id: ALTERACAO_DATA_EMISSAO_NF
   evidencias_historicas: 4
   padroes:
   - alterar data de emissão da nf
@@ -420,10 +554,14 @@ intencoes:
   - prazo limite de recebimento até o dia 25
   - data de corte + emissão
   - ajustar data de faturamento
+  - emitidas + dia
+  - emissão + dia 
+  - emitir + dia 
 - id: INT_NF_CORRECAO_CODIGO
   intencao: Corrigir código incorreto registrado na nota fiscal.
   causa_padrao: Correção de Código da Nota Fiscal
   classificacao: Cancelamento e Reemissão de Nota Fiscal
+  causa_id: CORRECAO_CODIGO_NF
   evidencias_historicas: 1
   padroes:
   - corrigir código da nf
@@ -435,11 +573,23 @@ intencoes:
   - código de serviço incorreto
   - código de serviço errado
   - corrigir o código da nota
+  - corrigir + código + serviço
+  - alterar + código + serviço
+  - código + serviço + incorreto
 - id: INT_NF_REEMISSAO_PO
   intencao: Substituir ou reemitir NF com PO.
   causa_padrao: Reemissão de NF com PO
   classificacao: Cancelamento e Reemissão de Nota Fiscal
+  causa_id: REEMISSAO_NF_PO
   evidencias_historicas: 4
+  assinaturas:
+    - acoes_um_de:
+        - SUBSTITUIR
+        - REEMITIR
+      objetos_todos:
+        - NOTA_FISCAL
+        - PO
+
   padroes:
   - substituição de nf + po
   - substituir nf + po
@@ -600,6 +750,7 @@ intencoes:
   intencao: Corrigir cobrança ou pagamento em duplicidade.
   causa_padrao: Duplicidade de Cobrança
   classificacao: Cobrança e Contestação
+  causa_id: DUPLICIDADE_COBRANCA
   evidencias_historicas: 3
 
   assinaturas:
@@ -648,6 +799,7 @@ intencoes:
   intencao: Questionar ou corrigir cobrança de setup, taxa ou chave de loja.
   causa_padrao: Cobrança de Setup/Taxa
   classificacao: Cobrança e Contestação
+  causa_id: COBRANCA_SETUP
   evidencias_historicas: 4
 
   assinaturas:
@@ -682,7 +834,15 @@ intencoes:
   intencao: Solicitar estorno ou devolução de cobrança.
   causa_padrao: Estorno/Devolução de Cobrança
   classificacao: Cobrança e Contestação
+  causa_id: ESTORNO_COBRANCA
   evidencias_historicas: 2
+
+  assinaturas:
+    - acoes_um_de:
+        - ESTORNAR
+      objetos_todos:
+        - COBRANCA
+
   padroes:
   - solicitar estorno
   - estorno de cobrança
@@ -698,6 +858,7 @@ intencoes:
   intencao: Negociar dívida ou inadimplência.
   causa_padrao: Negociação de Inadimplência
   classificacao: Cobrança e Contestação
+  causa_id: NEGOCIACAO_INADIMPLENCIA
   evidencias_historicas: 1
   padroes:
   - negociação da inadimplência
@@ -714,6 +875,7 @@ intencoes:
   intencao: Solicitar segunda via, reenvio ou reemissão de boleto.
   causa_padrao: Reenvio/Reemissão de Boleto
   classificacao: Pagamentos, Boletos e Recebimentos
+  causa_id: REENVIO_BOLETO
   evidencias_historicas: 13
   padroes:
   - reenvio de boleto
@@ -763,6 +925,7 @@ intencoes:
   intencao: Alterar ou prorrogar vencimento ou prazo de pagamento.
   causa_padrao: Alteração/Prorrogação de Vencimento
   classificacao: Pagamentos, Boletos e Recebimentos
+  causa_id: ALTERACAO_VENCIMENTO
   evidencias_historicas: 23
   padroes:
   - prorrogar boleto
@@ -822,6 +985,7 @@ intencoes:
   intencao: Cancelar boleto ou interromper cobranças futuras ligadas a boleto.
   causa_padrao: Cancelamento de Boleto
   classificacao: Pagamentos, Boletos e Recebimentos
+  causa_id: CANCELAMENTO_BOLETO
   evidencias_historicas: 2
 
   assinaturas:
@@ -872,6 +1036,7 @@ intencoes:
   intencao: Consultar pagamentos, débitos, pendências ou recebíveis.
   causa_padrao: Consulta/Regularização Financeira
   classificacao: Pagamentos, Boletos e Recebimentos
+  causa_id: CONSULTA_FINANCEIRA
   evidencias_historicas: 20
   padroes:
   - consulta de débitos
@@ -906,6 +1071,7 @@ intencoes:
   intencao: Alterar conta, domicílio ou forma de recebimento.
   causa_padrao: Alteração de Conta/Forma de Recebimento
   classificacao: Pagamentos, Boletos e Recebimentos
+  causa_id: TROCA_CONTA_DEPOSITO
   evidencias_historicas: 6
   padroes:
   - troca de conta para depósito
@@ -928,6 +1094,7 @@ intencoes:
   intencao: Solicitar NF associada a boleto em aberto.
   causa_padrao: NF Vinculada a Boleto em Aberto
   classificacao: Pagamentos, Boletos e Recebimentos
+  causa_id: NF_VINCULADA_BOLETO
   evidencias_historicas: 1
   padroes:
   - boleto em aberto + não recebemos a nf
@@ -945,6 +1112,7 @@ intencoes:
   intencao: Cancelar contrato, serviço ou produto contratado.
   causa_padrao: Cancelamento de Contrato/Produto
   classificacao: Contratos, Comercial e Cadastro
+  causa_id: CANCELAMENTO_CONTRATO
   evidencias_historicas: 9
   padroes:
   - cancelar contrato
@@ -976,7 +1144,16 @@ intencoes:
   intencao: Congelar ou suspender temporariamente contrato ou serviço.
   causa_padrao: Congelamento de Contrato
   classificacao: Contratos, Comercial e Cadastro
+  causa_id: CONGELAMENTO_CONTRATO
   evidencias_historicas: 10
+
+  
+  assinaturas:
+    - acoes_um_de:
+        - SUSPENDER
+      objetos_todos:
+        - CONTRATO
+
   padroes:
   - congelar contrato
   - congelar o contrato
@@ -1008,6 +1185,7 @@ intencoes:
   intencao: Atualizar dados cadastrais, e-mail ou telefone.
   causa_padrao: Atualização Cadastral
   classificacao: Contratos, Comercial e Cadastro
+  causa_id: ATUALIZACAO_CADASTRAL
   evidencias_historicas: 23
   padroes:
   - atualizar + email
@@ -1083,6 +1261,7 @@ intencoes:
   intencao: Alterar, renegociar ou atualizar condições comerciais ou contratuais.
   causa_padrao: Alteração de Condições Contratuais/Comerciais
   classificacao: Contratos, Comercial e Cadastro
+  causa_id: PENDENTE_RETORNO_COMERCIAL
   evidencias_historicas: 9
   padroes:
   - renegociar + contrato
@@ -1136,6 +1315,7 @@ intencoes:
   intencao: Pedir informação sobre contrato ou condição comercial.
   causa_padrao: Informação Contratual/Comercial
   classificacao: Contratos, Comercial e Cadastro
+  causa_id: INFORMACAO_CONTRATUAL
   evidencias_historicas: 5
   padroes:
   - dúvida sobre contrato
@@ -1150,10 +1330,15 @@ intencoes:
   - validar o contrato
   - confirmar condição comercial
   - entender sobre a cobrança mensal + contrato
+  - entender + cláusula + contrato
+  - entender + taxa + contrato
+  - informação + contrato
+  - dúvida + contrato
 - id: INT_ADM_ENCERRAMENTO
   intencao: Encerrar chamado sem outra atuação operacional.
   causa_padrao: Encerramento sem Ação
   classificacao: Atendimento Administrativo e Suporte
+  causa_id: ENCERRAMENTO_SEM_ACAO
   evidencias_historicas: 6
   padroes:
   - sem solicitação encerrar
@@ -1171,6 +1356,7 @@ intencoes:
   intencao: Solicitar documento administrativo.
   causa_padrao: Documentos/Carta de Quitação
   classificacao: Atendimento Administrativo e Suporte
+  causa_id: REENVIO_INFORMACAO
   evidencias_historicas: 7
   padroes:
   - carta de quitação
@@ -1198,6 +1384,7 @@ intencoes:
   intencao: Solicitar acesso ou encaminhamento administrativo.
   causa_padrao: Acesso/Encaminhamento Administrativo
   classificacao: Atendimento Administrativo e Suporte
+  causa_id: ENCAMINHAMENTO_COMERCIAL
   evidencias_historicas: 5
   padroes:
   - acesso admin
@@ -1221,6 +1408,7 @@ intencoes:
   intencao: Solicitar informação administrativa genérica.
   causa_padrao: Informação Administrativa Geral
   classificacao: Atendimento Administrativo e Suporte
+  causa_id: INFORMACOES_GERAIS
   evidencias_historicas: 3
   padroes:
   - informações gerais sobre atendimento
@@ -1228,10 +1416,13 @@ intencoes:
   - confirmar cancelamento do pedido
   - informação geral financeira
   - solicitar contato do financeiro
+  - informações gerais + atendimento
+  - contato + financeiro
 - id: INT_FAT_DUVIDA
   intencao: Consultar ou verificar faturamento, fatura ou obrigações fiscais.
   causa_padrao: Dúvida/Verificação de Faturamento
   classificacao: Faturamento e Obrigações Fiscais
+  causa_id: DUVIDA_FATURAMENTO
   evidencias_historicas: 9
   padroes:
   - dúvida sobre faturamento
@@ -1267,6 +1458,7 @@ intencoes:
   intencao: Reenviar nota fiscal não recebida.
   causa_padrao: Reenvio de Nota Fiscal
   classificacao: Faturamento e Obrigações Fiscais
+  causa_id: REENVIO_NF
   evidencias_historicas: 2
   padroes:
   - reenvio de nf
@@ -1313,6 +1505,7 @@ intencoes:
   intencao: Corrigir dados fiscais ou incluir PO por carta de correção.
   causa_padrao: Correção Fiscal/PO por Carta de Correção
   classificacao: Faturamento e Obrigações Fiscais
+  causa_id: INCLUSAO_PO_NF
   evidencias_historicas: 4
   padroes:
   - carta de correção + po
@@ -1337,6 +1530,10 @@ intencoes:
   - constar o número da po
   - correção do billing
   - corrigir o corpo da nota
+  - incluir + po + nf
+  - inclusão + po + nf
+  - inserir + po + nf
+  - constar + po + nf
   exclusoes:
   - cancelar nf
   - substituir nf
@@ -1344,6 +1541,7 @@ intencoes:
   intencao: Tratar requisito ou regra fiscal específica.
   causa_padrao: Requisito Fiscal
   classificacao: Faturamento e Obrigações Fiscais
+  causa_id: ALTERACAO_DADOS_FISCAIS
   evidencias_historicas: 1
   padroes:
   - requisito fiscal do cliente
