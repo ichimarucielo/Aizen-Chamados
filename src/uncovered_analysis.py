@@ -1,4 +1,4 @@
-"""Agrupa padrões textuais dos chamados sem sugestão para revisão do N2."""
+"""Agrupa lacunas de classificação para revisão do N2."""
 
 from collections import Counter
 import json
@@ -18,6 +18,11 @@ from parse_description import (
     normalize_description,
 )
 from root_cause_analysis import ngrams
+from root_cause_engine import (
+    extract_concepts,
+    load_dictionary,
+    normalize_text,
+)
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -52,13 +57,13 @@ OUTPUT_PATH = (
 
 STATUS_UNCOVERED = "Sem correspondência"
 STATUS_AMBIGUOUS = "Ambígua"
+REASON_CONTRACT_NOT_FOUND = "CONTRACT_NOT_FOUND"
 
 MIN_CLUSTER_SIZE = 2
 MAX_CLUSTERS = 40
+MAX_CONTRACT_GAPS = 40
 
 
-# Termos que aparecem no formulário/e-mail, mas não ajudam
-# a identificar a intenção operacional.
 CLUSTER_STOPWORDS = {
     "a",
     "as",
@@ -122,8 +127,12 @@ CLUSTER_STOPWORDS = {
 
 IDENTIFIER_PATTERNS = [
     re.compile(r"[\w.+-]+@[\w.-]+\.\w+"),
-    re.compile(r"\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}"),
-    re.compile(r"\(?\d{2}\)?\s?\d{4,5}-?\d{4}"),
+    re.compile(
+        r"\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}"
+    ),
+    re.compile(
+        r"\(?\d{2}\)?\s?\d{4,5}-?\d{4}"
+    ),
 ]
 
 
@@ -132,12 +141,13 @@ WORKBOOK_REQUIRED_COLUMNS = {
     "Descrição",
     "Assunto",
     "Status da Sugestão",
+    "Motivo da Decisão",
     "Classificação Validada",
 }
 
 
 def _remove_identifiers(text: str) -> str:
-    """Remove e-mails, CNPJ e telefones antes do agrupamento lexical."""
+    """Remove e-mails, CNPJ e telefones."""
     for pattern in IDENTIFIER_PATTERNS:
         text = pattern.sub(" ", text)
 
@@ -145,7 +155,7 @@ def _remove_identifiers(text: str) -> str:
 
 
 def _as_text(value) -> str:
-    """Converte valores da planilha para texto sem transformar NaN em 'nan'."""
+    """Converte valor para texto sem transformar NaN em 'nan'."""
     if pd.isna(value):
         return ""
 
@@ -153,25 +163,31 @@ def _as_text(value) -> str:
 
 
 def _cluster_tokens(text: str) -> list[str]:
-    """Tokenização simples e previsível para agrupamento lexical."""
-    text = _as_text(text).lower()
+    """Tokenização simples para agrupamento lexical."""
+    normalized = _as_text(text).lower()
 
-    # Remove HTML.
-    text = re.sub(r"<[^>]+>", " ", text)
+    normalized = re.sub(
+        r"<[^>]+>",
+        " ",
+        normalized,
+    )
 
-    # Remove pontuação, preservando letras acentuadas e números.
-    text = re.sub(r"[^\wÀ-ÿ]+", " ", text)
+    normalized = re.sub(
+        r"[^\wÀ-ÿ]+",
+        " ",
+        normalized,
+    )
 
     return [
         token
-        for token in text.split()
+        for token in normalized.split()
         if token not in CLUSTER_STOPWORDS
         and len(token) > 1
     ]
 
 
 def _has_problem_field(description) -> bool:
-    """Detecta o campo 'Descrição do problema' em HTML ou texto puro."""
+    """Detecta o campo Descrição do problema."""
     raw = _as_text(description)
 
     if not raw:
@@ -186,11 +202,10 @@ def _has_problem_field(description) -> bool:
     )
 
 
-def _extract_problem_for_analysis(description) -> str:
-    """
-    Extrai 'Descrição do problema' tanto do HTML do formulário
-    quanto de descrições em texto puro usadas nas análises/testes.
-    """
+def _extract_problem_for_analysis(
+    description,
+) -> str:
+    """Extrai o conteúdo operacional da descrição."""
     raw = _as_text(description)
 
     if not raw:
@@ -199,28 +214,25 @@ def _extract_problem_for_analysis(description) -> str:
     if not _has_problem_field(raw):
         return ""
 
-    # Texto puro:
-    # "Descrição do problema: alguma coisa"
     plain_match = re.search(
         r"Descrição do problema:\s*(.*)$",
         raw,
         flags=re.IGNORECASE | re.DOTALL,
     )
 
-    # Se não houver HTML relevante, usa diretamente o conteúdo
-    # depois de "Descrição do problema:".
-    if plain_match and "<strong" not in raw.lower():
+    if (
+        plain_match
+        and "<strong" not in raw.lower()
+    ):
         return normalize_description(
             plain_match.group(1)
         ).strip()
 
-    # Formulário HTML: usa o parser oficial.
     problem = extract_problem(raw)
 
     if problem:
         return problem.strip()
 
-    # Fallback final para texto puro.
     if plain_match:
         return normalize_description(
             plain_match.group(1)
@@ -229,14 +241,14 @@ def _extract_problem_for_analysis(description) -> str:
     return ""
 
 
-def _case_text(description, subject) -> tuple[str, str]:
-    """
-    Retorna o texto operacional e sua origem.
-
-    Quando existe 'Descrição do problema', usa esse trecho.
-    Quando não existe, usa o Assunto.
-    """
-    problem = _extract_problem_for_analysis(description)
+def _case_text(
+    description,
+    subject,
+) -> tuple[str, str]:
+    """Retorna texto operacional e origem."""
+    problem = _extract_problem_for_analysis(
+        description
+    )
 
     if problem:
         return problem, "descricao_problema"
@@ -244,9 +256,13 @@ def _case_text(description, subject) -> tuple[str, str]:
     return _as_text(subject), "assunto"
 
 
-def _has_suggestion_results(dataframe: pd.DataFrame) -> bool:
-    """Verifica se o workbook já possui resultados reais de sugestão."""
-    if not WORKBOOK_REQUIRED_COLUMNS.issubset(dataframe.columns):
+def _has_suggestion_results(
+    dataframe: pd.DataFrame,
+) -> bool:
+    """Verifica se o workbook possui resultados do motor."""
+    if not WORKBOOK_REQUIRED_COLUMNS.issubset(
+        dataframe.columns
+    ):
         return False
 
     statuses = (
@@ -259,22 +275,59 @@ def _has_suggestion_results(dataframe: pd.DataFrame) -> bool:
     return statuses.ne("").any()
 
 
+def _extract_concept_groups(
+    text: str,
+    dictionary: dict,
+) -> tuple[list[str], list[str], list[str]]:
+    """Separa conceitos identificados por categoria."""
+    concepts = extract_concepts(
+        normalize_text(text),
+        dictionary,
+    )
+
+    objects = sorted(
+        concept_id
+        for concept_id in concepts
+        if concept_id.startswith("OBJ_")
+    )
+
+    actions = sorted(
+        concept_id
+        for concept_id in concepts
+        if concept_id.startswith("ACAO_")
+    )
+
+    contexts = sorted(
+        concept_id
+        for concept_id in concepts
+        if not concept_id.startswith(
+            ("OBJ_", "ACAO_")
+        )
+    )
+
+    return objects, actions, contexts
+
+
+def _build_contract_signature(
+    objects: list[str],
+    actions: list[str],
+    contexts: list[str],
+) -> str:
+    """Cria assinatura determinística dos conceitos."""
+    return " + ".join(
+        objects + actions + contexts
+    )
+
+
 def analyze_uncovered(
     dataframe: pd.DataFrame,
     min_cluster_size: int = MIN_CLUSTER_SIZE,
     max_clusters: int = MAX_CLUSTERS,
 ) -> dict:
-    """Gera clusters lexicais auditáveis; não infere causa nem cria regras."""
-
-    required = {
-        "Número do Chamado",
-        "Descrição",
-        "Assunto",
-        "Status da Sugestão",
-        "Classificação Validada",
-    }
-
-    missing = required.difference(dataframe.columns)
+    """Analisa padrões lexicais e contratos ausentes."""
+    missing = WORKBOOK_REQUIRED_COLUMNS.difference(
+        dataframe.columns
+    )
 
     if missing:
         raise ValueError(
@@ -283,7 +336,8 @@ def analyze_uncovered(
         )
 
     uncovered = dataframe[
-        dataframe["Status da Sugestão"] == STATUS_UNCOVERED
+        dataframe["Status da Sugestão"]
+        == STATUS_UNCOVERED
     ].copy()
 
     ambiguous_count = int(
@@ -293,9 +347,15 @@ def analyze_uncovered(
         ).sum()
     )
 
-    entries = []
+    dictionary = load_dictionary()
 
-    document_frequencies: dict[int, Counter[str]] = {
+    entries = []
+    contract_signatures: Counter[str] = Counter()
+
+    document_frequencies: dict[
+        int,
+        Counter[str],
+    ] = {
         size: Counter()
         for size in (1, 2, 3)
     }
@@ -323,40 +383,65 @@ def analyze_uncovered(
             subject,
         )
 
-        # Diagnóstico do campo de problema:
-        #
-        # 1. Campo não existe -> ausente
-        # 2. Campo existe, mas conteúdo é curto -> curta
+        reason_code = _as_text(
+            row["Motivo da Decisão"]
+        )
+
+        objects, actions, contexts = (
+            _extract_concept_groups(
+                text,
+                dictionary,
+            )
+        )
+
+        signature = _build_contract_signature(
+            objects,
+            actions,
+            contexts,
+        )
+
+        if (
+            reason_code
+            == REASON_CONTRACT_NOT_FOUND
+            and signature
+        ):
+            contract_signatures[signature] += 1
+
         if not has_problem_field:
             problem_missing += 1
-
-        elif len(problem.strip()) < 40:
+        elif len(_as_text(problem)) < 40:
             problem_short += 1
 
-        cleaned_text = _remove_identifiers(text)
+        cleaned_text = _remove_identifiers(
+            text
+        )
 
-        # Tokenização própria do agrupamento.
-        # Não depende do tokenizer do motor de causa.
-        tokens = _cluster_tokens(cleaned_text)
+        tokens = _cluster_tokens(
+            cleaned_text
+        )
 
         if not tokens:
             tokenless += 1
 
-        terms_by_size = {}
+        terms_by_size: dict[int, set[str]] = {}
 
         for size in (1, 2, 3):
             terms = set(
-                ngrams(tokens, size)
+                ngrams(
+                    tokens,
+                    size,
+                )
             )
 
             terms_by_size[size] = terms
+
             document_frequencies[size].update(
                 terms
             )
 
         entries.append(
             {
-                "ticket": str(
+                "ticket": _as_text(
                     row["Número do Chamado"]
                 ),
                 "terms": terms_by_size,
@@ -364,18 +449,22 @@ def analyze_uncovered(
                     row["Classificação Validada"]
                 ),
                 "text_source": text_source,
+                "reason_code": reason_code,
+                "objects": objects,
+                "actions": actions,
+                "contexts": contexts,
+                "signature": signature,
             }
         )
 
     candidates = [
         (size, term, count)
-        for size, counter in document_frequencies.items()
+        for size, counter
+        in document_frequencies.items()
         for term, count in counter.items()
         if count >= min_cluster_size
     ]
 
-    # Prioriza trigramas, depois bigramas, depois unigramas.
-    # Dentro do mesmo tamanho, prioriza termos mais frequentes.
     candidates.sort(
         key=lambda item: (
             -item[0],
@@ -436,26 +525,90 @@ def analyze_uncovered(
             }
         )
 
-        # Um chamado entra em apenas um cluster.
-        remaining.difference_update(matched)
+        remaining.difference_update(
+            matched
+        )
+
+    contract_gaps = []
+
+    for signature, quantity in (
+        contract_signatures.most_common(
+            MAX_CONTRACT_GAPS
+        )
+    ):
+        matching_entries = [
+            entry
+            for entry in entries
+            if (
+                entry["reason_code"]
+                == REASON_CONTRACT_NOT_FOUND
+                and entry["signature"]
+                == signature
+            )
+        ]
+
+        first_entry = matching_entries[0]
+
+        validated_classes = Counter(
+            entry["validated_class"]
+            for entry in matching_entries
+            if entry["validated_class"]
+        )
+
+        contract_gaps.append(
+            {
+                "assinatura": signature,
+                "quantidade": quantity,
+                "objetos": first_entry["objects"],
+                "acoes": first_entry["actions"],
+                "contextos": first_entry["contexts"],
+                "numeros_chamado": [
+                    entry["ticket"]
+                    for entry in matching_entries
+                ],
+                "classes_validadas_n2": dict(
+                    validated_classes
+                ),
+                "revisao": (
+                    "Avaliar criação de contrato somente "
+                    "se a combinação indicar classe inequívoca."
+                ),
+            }
+        )
+
+    reason_counts = Counter(
+        entry["reason_code"]
+        for entry in entries
+        if entry["reason_code"]
+    )
 
     return {
         "chamados_sem_correspondencia": int(
             len(uncovered)
         ),
         "chamados_ambiguos": ambiguous_count,
-        "minimo_chamados_por_cluster": min_cluster_size,
+        "motivos_da_decisao": dict(
+            reason_counts
+        ),
+        "minimo_chamados_por_cluster": (
+            min_cluster_size
+        ),
         "metodo": (
-            "Agrupamento lexical não sobreposto por "
-            "trigramas, bigramas e unigramas do trecho "
-            "Descrição do problema; usa Assunto quando "
-            "o trecho está ausente."
+            "Agrupamento lexical e análise das "
+            "combinações de conceitos sem contrato."
         ),
         "diagnosticos_de_texto": {
-            "descricao_do_problema_ausente": problem_missing,
-            "descricao_do_problema_curta": problem_short,
-            "sem_termos_apos_normalizacao": tokenless,
+            "descricao_do_problema_ausente": (
+                problem_missing
+            ),
+            "descricao_do_problema_curta": (
+                problem_short
+            ),
+            "sem_termos_apos_normalizacao": (
+                tokenless
+            ),
         },
+        "lacunas_de_contrato": contract_gaps,
         "clusters": clusters,
         "chamados_individuais": [
             entries[index]["ticket"]
@@ -463,12 +616,12 @@ def analyze_uncovered(
         ],
         "notas": [
             (
-                "Os clusters são exploratórios e não indicam "
-                "automaticamente a causa da lacuna."
+                "As lacunas de contrato indicam conceitos "
+                "reconhecidos sem regra de combinação."
             ),
             (
-                "Números dos chamados permitem revisão no "
-                "fluxo operacional sem copiar descrições pessoais."
+                "Os clusters lexicais são exploratórios "
+                "e não criam regras automaticamente."
             ),
         ],
     }
@@ -482,7 +635,9 @@ def main() -> None:
             WORKBOOK_PATH
         )
 
-        if _has_suggestion_results(workbook_data):
+        if _has_suggestion_results(
+            workbook_data
+        ):
             dataframe = workbook_data
 
     if dataframe is None:
@@ -523,16 +678,32 @@ def main() -> None:
     )
 
     print(
-        f"Sem correspondência: "
+        "Sem correspondência: "
         f"{report['chamados_sem_correspondencia']}"
     )
 
     print(
-        f"Clusters: {len(report['clusters'])}"
+        f"Clusters lexicais: "
+        f"{len(report['clusters'])}"
     )
 
     print(
-        f"Chamados individuais: "
+        f"Lacunas de contrato: "
+        f"{len(report['lacunas_de_contrato'])}"
+    )
+
+    print("\nTop combinações sem contrato:\n")
+
+    for gap in report[
+        "lacunas_de_contrato"
+    ][:20]:
+        print(
+            f"{gap['quantidade']:>4} | "
+            f"{gap['assinatura']}"
+        )
+
+    print(
+        "\nChamados individuais: "
         f"{len(report['chamados_individuais'])}"
     )
 

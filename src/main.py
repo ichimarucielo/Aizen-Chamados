@@ -19,9 +19,9 @@ from lookup import (
 from parse_description import (
     extract_cnpj,
     extract_problem,
+    parse_description,
 )
 from root_cause_engine import build_suggestions
-
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -82,12 +82,14 @@ COMPILADO_COLUMNS = [
 SUGGESTION_COLUMNS = [
     "Intenção Identificada",
     "Causa Identificada",
+    "ID Causa Padrão",
     "Causa Raiz Padrão",
     "Objeto Operacional Sugerido",
     "Classificação Sugerida",
     "Score Confiança",
     "Regra Sugerida",
     "Status da Sugestão",
+    "Motivo da Decisão",
     "Ambiguidade",
 ]
 
@@ -171,6 +173,56 @@ def build_n2_dataframe(
     )
 
     dataframe["DESCRICAO_NORMALIZADA"] = descricao_detalhada
+
+    parsed_description = description.apply(
+        parse_description
+    )
+
+    assunto_interno = parsed_description.map(
+        lambda parsed: str(
+            parsed.get("assunto", "")
+        ).strip()
+    )
+
+    entrada_classificacao = descricao_detalhada.copy()
+
+    possui_assunto_interno = assunto_interno.ne("")
+    possui_descricao = descricao_detalhada.ne("")
+
+    possui_ambos = (
+        possui_assunto_interno
+        & possui_descricao
+    )
+
+    entrada_classificacao.loc[
+        possui_ambos
+    ] = (
+        assunto_interno.loc[possui_ambos]
+        + ". "
+        + descricao_detalhada.loc[possui_ambos]
+    )
+
+    somente_assunto_interno = (
+        possui_assunto_interno
+        & ~possui_descricao
+    )
+
+    entrada_classificacao.loc[
+        somente_assunto_interno
+    ] = assunto_interno.loc[
+        somente_assunto_interno
+    ]
+
+    entrada_classificacao = (
+        entrada_classificacao
+        .fillna("")
+        .astype(str)
+        .str.strip()
+    )
+
+    dataframe["ENTRADA_CLASSIFICACAO"] = (
+        entrada_classificacao
+    )
 
     # ------------------------------------------------------------
     # 3. Razão social
@@ -306,7 +358,7 @@ def build_n2_dataframe(
     # 7. Motor determinístico
     # ------------------------------------------------------------
     suggestions = build_suggestions(
-        dataframe["DESCRICAO_NORMALIZADA"],
+        dataframe["ENTRADA_CLASSIFICACAO"],
         history_df,
     )
 
@@ -318,8 +370,12 @@ def build_n2_dataframe(
         else ""
     )
 
-    canonical_causes = suggestions[
-        "causa_canonica"
+    standard_causes = suggestions[
+        "causa_padrao"
+    ]
+
+    standard_cause_ids = suggestions[
+        "causa_id"
     ]
 
     # ------------------------------------------------------------
@@ -331,10 +387,12 @@ def build_n2_dataframe(
 
     result["Causa Identificada"] = identified_causes
 
-    result["Causa Raiz Padrão"] = canonical_causes
+    result["ID Causa Padrão"] = standard_cause_ids
 
-    result["Causa raiz"] = canonical_causes.where(
-        canonical_causes.notna(),
+    result["Causa Raiz Padrão"] = standard_causes
+
+    result["Causa raiz"] = standard_causes.where(
+        standard_causes.notna(),
         result["Causa raiz"],
     )
 
@@ -377,6 +435,10 @@ def build_n2_dataframe(
             suggestions["classificacao"],
             suggestions["ambiguo"],
         )
+    ]
+
+    result["Motivo da Decisão"] = suggestions[
+        "reason_code"
     ]
 
     # ------------------------------------------------------------

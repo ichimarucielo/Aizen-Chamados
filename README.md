@@ -1,112 +1,169 @@
-AIZEN CHAMADOS
+# AIZEN CHAMADOS
 
-Automação operacional do processo de monitoramento de chamados Salesforce para atualização do Plano N2.
+Automação operacional do processo de monitoramento de chamados do Salesforce para atualização do Plano N2.
 
-Objetivo
+## Objetivo
 
-Ler o relatório monitoramento.xlsx, aplicar os tratamentos definidos pelo processo N2 e gerar uma cópia atualizada de plano_n2_template.xlsx em:
+Ler o relatório `monitoramento.xlsx`, aplicar os tratamentos definidos pelo processo N2 e gerar uma cópia atualizada do arquivo `plano_n2_template.xlsx` em:
 
+```text
 data/output/plano_n2_gerado.xlsx
-
+```
 
 O projeto não utiliza:
 
-IA generativa
-APIs externas
-Integração Salesforce
-Banco de dados
-Microsserviços
+- IA generativa no fluxo de decisão
+- APIs externas
+- integração direta com Salesforce
+- banco de dados
+- microsserviços
 
-Toda a lógica é baseada em regras operacionais, taxonomia validada pelo N2 e processamento local de planilhas Excel.
+Toda a lógica ativa é baseada em regras operacionais determinísticas, catálogo canônico de causas, taxonomia validada pelo N2 e processamento local de planilhas Excel.
 
-Status do Projeto
-Produção
+## Status do Projeto
 
-✅ Leitura do relatório Salesforce
+**MVP 1 em validação final**
 
-✅ Atualização automática do Plano N2
+### Processo operacional
 
-✅ Idempotência por Número do Chamado
+- ✅ Leitura do relatório Salesforce
+- ✅ Atualização automática do Plano N2
+- ✅ Idempotência por `Número do Chamado`
+- ✅ Preservação das abas, tabelas, fórmulas e dashboards do template
+- ✅ Inclusão automática apenas de chamados novos
+- ✅ Atualização de sugestões em chamados já existentes
+- ✅ Extração da descrição operacional
+- ✅ Uso do assunto interno como contexto complementar
+- ✅ Suggestion Engine determinístico
+- ✅ Causa raiz padrão canônica
+- ✅ Objeto Operacional Sugerido
+- ✅ Classificação Sugerida
+- ✅ Ambiguidade explícita
+- ✅ Casos sem evidência retornam `NO_PATTERN`
+- ✅ Classificação sem score probabilístico
 
-✅ Preservação das abas, tabelas, fórmulas e dashboards do template
+### Conhecimento operacional
 
-✅ Inclusão automática apenas de chamados novos
+- ✅ Seis classificações oficiais
+- ✅ Catálogo canônico de causas
+- ✅ Aliases para padronização de causas históricas
+- ✅ Todas as intenções ligadas por `causa_id`
+- ✅ Taxonomia operacional consolidada
+- ✅ Contrato de classificação documentado
+- ✅ Hipótese H1 validada com a equipe N2
+- ✅ Mapeamento `Classificação → Objeto Operacional`
 
-✅ Suggestion Engine operacional
+### Estado atual do dicionário
 
-✅ Objeto Operacional Sugerido
+```text
+Intenções:          28
+Causas canônicas:   30
+Aliases de causas:  57
+Assinaturas:        10
+Classes oficiais:    6
+Problemas:            0
+```
 
-✅ Classificação Sugerida
+### Métricas atuais
 
-✅ Classificação determinística sem score
+#### Histórico consolidado
 
-Conhecimento Operacional
+```text
+Total:                  411
+Classificados:          344
+Cobertura automática: 83,7%
+Ambíguos:                 7
+Sem correspondência:     60
+Por assinatura:         147
+Por padrão:             197
+```
 
-✅ Taxonomia operacional consolidada
+#### Lote atual do `main.py`
 
-✅ Contrato de classificação documentado
+```text
+Total:                  157
+Classificados:          129
+Cobertura automática: 82,2%
+Ambíguos:                 3
+Sem correspondência:     25
+Por assinatura:          48
+Por padrão:              81
+```
 
-✅ Hipótese H1 validada com a equipe N2
+As métricas históricas são usadas para regressão e auditoria. A concordância operacional do N2 continua sendo o indicador principal.
 
-✅ Mapeamento Classificação → Objeto Operacional
+## Princípio Central
 
-Evolução
+A classificação representa o tipo de trabalho operacional executado pelo N2 e não necessariamente a forma como o cliente descreveu o problema.
 
-🔄 Aumentar cobertura das sugestões
+A causa raiz e a classificação são conceitos diferentes:
 
-🔄 Refinar regras aprovadas pelo N2
-
-🔄 Medir taxa de concordância operacional
-
-Documentos de Referência
-
-Esses documentos representam o conhecimento operacional descoberto durante o projeto e devem ser lidos antes de alterar regras ou taxonomia.
-
-classification_contract.md
-
-Define:
-
-As 6 classificações oficiais
-Os objetos operacionais correspondentes
-A hipótese H1
-O indicador principal do projeto
-
-Princípio central:
-
-A classificação representa o tipo de trabalho operacional executado pelo N2 e não necessariamente o problema relatado pelo cliente.
-
-data/input/dicionario_aizen_intencoes.yaml
-
-Dicionário ativo: intenção → causa raiz padrão → uma das seis classificações oficiais. Regras e precedências são determinísticas; conflitos não resolvidos retornam ambiguidade.
-
-data/input/causa_raiz_taxonomia.yaml
-
-Taxonomia operacional contendo:
-
-Causa histórica
+```text
+Descrição operacional
         ↓
-Grupo canônico
+Intenção identificada
         ↓
-Classificação
+Causa raiz padrão
+        ↓
+Classificação oficial
+```
 
+Exemplo:
 
-Mantém compatibilidade com o histórico analisado.
+```text
+Descrição: "Preciso alterar o vencimento do boleto"
+Causa raiz: Alteração de vencimento
+Classificação: Pagamentos, Boletos e Recebimentos
+```
 
-data/input/causa_raiz_rules.yaml
+## As Seis Classificações Oficiais
 
-Taxonomia e regras exploratórias anteriores, preservadas como referência histórica. O motor atual consulta `dicionario_aizen_intencoes.yaml`.
+1. Cancelamento e Reemissão de Nota Fiscal
+2. Cobrança e Contestação
+3. Pagamentos, Boletos e Recebimentos
+4. Contratos, Comercial e Cadastro
+5. Atendimento Administrativo e Suporte
+6. Faturamento e Obrigações Fiscais
 
-Esses status pertencem ao formato legado e não controlam a classificação ativa.
+Nenhuma regra ativa pode produzir uma classificação fora dessa lista.
 
-src/decision_analysis.py
+## Catálogo Canônico de Causas
 
-Ferramenta analítica utilizada para:
+O dicionário centraliza as causas na seção `causas`:
 
-Medir frequência histórica
-Identificar decisão predominante
-Avaliar confiança
-Gerar relatório Classificação → Causas → Quantidade
-Fluxo Operacional
+```yaml
+causas:
+  CONTESTACAO_COBRANCA:
+    nome: Contestação de cobrança
+    classificacao: Cobrança e Contestação
+```
+
+As intenções referenciam uma causa por ID:
+
+```yaml
+- id: INT_COB_CONTESTACAO
+  intencao: Contestar divergência, valor ou critério de cobrança.
+  causa_id: CONTESTACAO_COBRANCA
+```
+
+Esse modelo evita repetir nomes e classificações em regras diferentes.
+
+### Padronização de causas históricas
+
+A seção `aliases_causas` converte nomes históricos equivalentes para uma causa única:
+
+```yaml
+aliases_causas:
+  Ajuste de cobrança / faturamento: CONTESTACAO_COBRANCA
+  Dúvidas sobre cobrança: CONTESTACAO_COBRANCA
+  Dúvida cobrança: CONTESTACAO_COBRANCA
+```
+
+A correspondência de aliases é exata. Causas como `Outros` ou descrições com múltiplas solicitações não são forçadas para uma causa canônica.
+
+## Fluxo Operacional
+
+```text
 monitoramento.xlsx
         |
         v
@@ -114,13 +171,16 @@ leitura e normalização
         |
         +--> CNPJ
         |       |
-        |       +--> Referencias
+        |       +--> Referências
         |               |
         |               +--> Razão Social
         |
-        +--> Descrição
+        +--> Descrição bruta
         |       |
-        |       +--> Descrição detalhada
+        |       +--> Assunto interno
+        |       +--> Descrição do problema
+        |       +--> Descrição detalhada enxuta
+        |       +--> Entrada de classificação
         |
         +--> Status
         |       |
@@ -131,78 +191,114 @@ leitura e normalização
         |       +--> Dias em Aberto
         |
         +--> Suggestion Engine
-        |       |
-        |       +--> Causa identificada
-        |       +--> Causa raiz padrão
-        |       +--> Classificação automática
-        |       +--> Objeto Operacional Sugerido
-        |       +--> Classificação Sugerida
+                |
+                +--> Conceitos canônicos
+                +--> Intenção identificada
+                +--> causa_id
+                +--> Causa raiz padrão
+                +--> Classificação oficial
+                +--> Objeto Operacional Sugerido
+                +--> Motivo da decisão
+                +--> Ambiguidade ou NO_PATTERN
         |
         v
 plano_n2_gerado.xlsx
+```
 
-Arquitetura
+## Entrada de Classificação
 
-O fluxo é intencionalmente simples.
+A coluna `Descrição detalhada` permanece enxuta para uso operacional.
 
-Classificação automática
+Para classificar, o motor combina:
 
-`Descrição detalhada` é normalizada e comparada aos padrões de intenção em `data/input/dicionario_aizen_intencoes.yaml`. Uma intenção determina sua causa raiz padrão e, por consequência, uma classificação oficial. Padrões da mesma intenção são consolidados; precedências explícitas resolvem contextos incidentais. Sem correspondência ou com conflito não resolvido, não há classificação automática.
+```text
+Assunto interno + Descrição detalhada
+```
 
-Núcleo
-src/extract.py → leitura das planilhas.
-src/parse_description.py → normalização da descrição e extração de informações.
-src/lookup.py → busca da razão social.
-src/business_rules.py → cálculo de situação e dias em aberto.
-src/root_cause_engine.py → identifica intenção, normaliza a causa padrão e deriva a classificação oficial.
-src/export.py → exportação para o template.
-src/main.py → orquestração do processo.
-Análise
-src/decision_analysis.py → análise histórica e confiança.
-src/dictionary_analysis.py → auditoria do dicionário contra o histórico.
-classification_contract.md → contrato operacional.
-data/input/causa_raiz_taxonomia.yaml → taxonomia.
-data/input/dicionario_aizen_intencoes.yaml → dicionário ativo do motor.
+O assunto interno complementa a descrição, mas não substitui a necessidade de evidência operacional.
 
-A chave de idempotência é:
+## Fluxo de Decisão do Motor
 
-Número do Chamado
-
-
-Chamados já existentes no compilado não são inseridos novamente.
-
-Hipótese H1
-
-A hipótese operacional validada durante a análise histórica é:
-
-É mais fácil identificar o objeto operacional que será tratado pelo N2 do que identificar a causa raiz exata.
-
-Fluxo conceitual:
-
-Descrição
-        ↓
-Identificação da causa
-        ↓
-Causa raiz padrão
-        ↓
+```text
+Texto
+  ↓
+Normalização
+  ↓
+Extração de ação, objeto, contexto e canal
+  ↓
+Assinaturas canônicas
+  ↓
+Padrões textuais como fallback
+  ↓
+Causa canônica
+  ↓
 Classificação oficial
+```
 
+### Estados possíveis
 
-Objetos operacionais:
+- `CLASSIFIED_SIGNATURE`: decisão por assinatura canônica
+- `CLASSIFIED_PATTERN`: decisão pelo fallback textual
+- `AMBIGUOUS_CAUSE`: duas ou mais intenções igualmente válidas
+- `NO_PATTERN`: evidência insuficiente
+- `EMPTY_TEXT`: texto vazio após normalização
 
-Documento Fiscal
+O motor não escolhe arbitrariamente quando existem duas ações operacionais válidas.
 
-Título Financeiro
+Exemplo:
 
-Valor Cobrado
+```text
+"Anular a NF e dar baixa no boleto"
+```
 
-Contrato/Cadastro
+Resultado:
 
-Informação/Atendimento
+```text
+Ambígua
+Candidatas:
+- Cancelamento de NF
+- Cancelamento de boleto
+```
 
-Parâmetro de Faturamento
+## Objetos Operacionais
 
-Estrutura de Pastas
+- Documento Fiscal
+- Título Financeiro
+- Valor Cobrado
+- Contrato/Cadastro
+- Informação/Atendimento
+- Parâmetro de Faturamento
+
+## Arquitetura
+
+O fluxo é intencionalmente simples e mantido por poucos módulos.
+
+### Núcleo
+
+- `src/extract.py`: leitura das planilhas
+- `src/parse_description.py`: extração do formulário, descrição operacional e CNPJ
+- `src/lookup.py`: busca da razão social
+- `src/business_rules.py`: cálculo de situação e dias em aberto
+- `src/root_cause_engine.py`: catálogo, assinaturas, padrões, causa e classificação
+- `src/export.py`: atualização do template Excel
+- `src/main.py`: orquestração do processo
+
+### Backfill e métricas
+
+- `src/backfill_suggestions.py`: reprocessamento dos chamados históricos
+- `src/aizen_metrics.py`: cobertura, distribuição, divergências e exportações
+
+### Análise
+
+- `src/decision_analysis.py`: análise histórica
+- `src/dictionary_analysis.py`: auditoria do dicionário
+- `src/root_cause_analysis.py`: análise exploratória de causas
+- `src/uncovered_analysis.py`: análise de casos sem correspondência
+- `src/validation_analysis.py`: concordância operacional
+
+## Estrutura de Pastas
+
+```text
 aizen_chamados/
 ├── data/
 │   ├── input/
@@ -214,6 +310,9 @@ aizen_chamados/
 │   │
 │   └── output/
 │       ├── plano_n2_gerado.xlsx
+│       ├── aizen_sem_padrao.xlsx
+│       ├── aizen_divergencias.xlsx
+│       ├── aizen_ambiguos.xlsx
 │       ├── decisao_analise.json
 │       ├── causa_raiz_analise.json
 │       ├── validation_analysis.json
@@ -221,6 +320,8 @@ aizen_chamados/
 │       └── dicionario_aizen_analise.json
 │
 ├── src/
+│   ├── aizen_metrics.py
+│   ├── backfill_suggestions.py
 │   ├── business_rules.py
 │   ├── decision_analysis.py
 │   ├── dictionary_analysis.py
@@ -234,197 +335,368 @@ aizen_chamados/
 │   ├── uncovered_analysis.py
 │   └── validation_analysis.py
 │
-├── requirements.txt
 ├── tests/
 │   ├── test_dictionary_analysis.py
-│   ├── test_root_cause_engine.py
 │   ├── test_main_classification.py
+│   ├── test_root_cause_engine.py
 │   ├── test_uncovered_analysis.py
 │   ├── test_validation_analysis.py
 │   └── test_validation_workflow.py
+│
 ├── classification_contract.md
-└── README.md
+├── README.md
+└── requirements.txt
+```
 
-Como Executar
+## Idempotência
 
-Com Python instalado, execute os comandos a partir da raiz do projeto. Instale as dependências uma vez:
+A chave de idempotência é:
+
+```text
+Número do Chamado
+```
+
+Chamados já existentes no compilado não são inseridos novamente. As sugestões podem ser atualizadas em registros existentes quando o motor ou o dicionário evoluem.
+
+## Documentos de Referência
+
+### `classification_contract.md`
+
+Define:
+
+- as seis classificações oficiais
+- os objetos operacionais correspondentes
+- a hipótese H1
+- o indicador principal do projeto
+
+### `data/input/dicionario_aizen_intencoes.yaml`
+
+Fonte ativa do motor. Contém:
+
+- classes permitidas
+- catálogo canônico de causas
+- aliases de causas históricas
+- vocabulário de ações, objetos, contextos e canais
+- intenções
+- assinaturas
+- padrões
+- exclusões
+
+### `data/input/causa_raiz_taxonomia.yaml`
+
+Mantém a taxonomia operacional e a compatibilidade com análises históricas.
+
+### `data/input/causa_raiz_rules.yaml`
+
+Referência histórica de regras exploratórias. Não controla a classificação ativa.
+
+## Como Executar
+
+Execute os comandos a partir da raiz do projeto.
+
+### Instalar dependências
 
 Windows:
 
+```powershell
 py -m pip install -r requirements.txt
+```
 
 Linux/macOS:
 
+```bash
 python3 -m pip install -r requirements.txt
+```
 
-Testes Automatizados
+### Validar o dicionário e o motor
 
-Execute a partir da raiz do projeto:
+Windows:
 
-Windows: `py -m pytest`
+```powershell
+py src/root_cause_engine.py
+```
 
-Linux/macOS: `python3 -m pytest`
+Linux/macOS:
 
-Os testes verificam intenções equivalentes, precedência, casos ambíguos, classes oficiais e análise histórica.
+```bash
+python3 src/root_cause_engine.py
+```
 
-Para gerar o Plano N2:
+Saída esperada:
 
-Windows: `py src/main.py`
+```text
+Intenções no dicionário: 28
+Causas canônicas: 30
+Aliases de causas: 57
+Problemas no dicionário: 0
+```
 
-Linux/macOS: `python3 src/main.py`
+### Gerar o Plano N2
 
+Windows:
+
+```powershell
+py src/main.py
+```
+
+Linux/macOS:
+
+```bash
+python3 src/main.py
+```
 
 Saída:
 
+```text
 data/output/plano_n2_gerado.xlsx
+```
 
-Análises Disponíveis
-Relatório de Taxonomia e Classificação
-Windows: `py src/decision_analysis.py`
+### Executar o backfill histórico
 
-Linux/macOS: `python3 src/decision_analysis.py`
+Windows:
 
+```powershell
+py src/backfill_suggestions.py
+```
 
-Gera análises de:
+Linux/macOS:
 
-confiança histórica
-distribuição de causas
-classificação → causas
-cobertura
-O resultado é salvo em `data/output/decisao_analise.json`.
+```bash
+python3 src/backfill_suggestions.py
+```
 
-Análise Exploratória de Causas Raiz
+### Gerar métricas e relatórios operacionais
 
-Windows: `py src/root_cause_analysis.py`
+Windows:
 
-Linux/macOS: `python3 src/root_cause_analysis.py`
+```powershell
+py src/aizen_metrics.py
+```
 
-Analisa palavras e expressões frequentes por causa raiz para apoiar a revisão de regras. O resultado é salvo em `data/output/causa_raiz_analise.json`; os candidatos exigem validação da equipe N2.
+Linux/macOS:
 
-Dicionário de Intenções e Relatório Histórico
+```bash
+python3 src/aizen_metrics.py
+```
 
-O dicionário determinístico é mantido em `data/input/dicionario_aizen_intencoes.yaml`. Para regenerar o relatório baseado no histórico:
+Arquivos gerados:
 
-Windows: `py src/dictionary_analysis.py`
+```text
+data/output/aizen_sem_padrao.xlsx
+data/output/aizen_divergencias.xlsx
+data/output/aizen_ambiguos.xlsx
+```
 
-Linux/macOS: `python3 src/dictionary_analysis.py`
+### Executar testes automatizados
 
-O arquivo `data/output/dicionario_aizen_analise.json` contém frequências, consolidação de causas, aliases, conflitos, dados faltantes, divergências de classificação e intenções priorizadas por volume.
+Windows:
 
-Métricas de Validação Operacional
+```powershell
+py -m pytest
+```
 
-Após o N2 preencher `Objeto Operacional Validado` e `Classificação Validada` na planilha gerada:
+Linux/macOS:
 
-Windows: `py src/validation_analysis.py`
+```bash
+python3 -m pytest
+```
 
-Linux/macOS: `python3 src/validation_analysis.py`
+Os testes verificam:
 
-O relatório `data/output/validation_analysis.json` apresenta concordância de classificação, cobertura total e por classificação validada, ambiguidades, concordância por classificação e faixa de confiança, além de erros por regra. Linhas antigas sem status de sugestão são excluídas dos denominadores.
+- integridade do catálogo
+- causa_id válido
+- classes oficiais
+- assinaturas
+- precedência entre intenção genérica e específica
+- casos ambíguos
+- casos sem correspondência
+- regressões do fluxo principal
 
-Na planilha, `Concordância` é calculada comparando a classificação sugerida com a validada. As duas colunas de validação são preenchidas manualmente pelo N2. Para calcular cobertura por classe, preencha `Classificação Validada` também em chamados sem sugestão; essa métrica usa somente os chamados rotulados pelo N2.
+## Análises Disponíveis
 
-Padrões sem Sugestão
+### Relatório de taxonomia e classificação
 
-Gere ou atualize o Plano N2 e execute:
+```powershell
+py src/decision_analysis.py
+```
 
-Windows: `py src/uncovered_analysis.py`
+Gera:
 
-Linux/macOS: `python3 src/uncovered_analysis.py`
+```text
+data/output/decisao_analise.json
+```
 
-O relatório `data/output/uncovered_analysis.json` agrupa chamados sem correspondência por expressões compartilhadas, inclui os números para revisão e sinaliza descrições ausentes/curtas. Os agrupamentos são exploratórios: o N2 decide quais padrões justificam novas regras. Se existir um Plano N2 gerado, o relatório também aproveita as classes validadas nele.
+### Análise exploratória de causas raiz
 
-Avaliação do Dicionário
+```powershell
+py src/root_cause_analysis.py
+```
 
-Windows: `py src/root_cause_engine.py`
+Gera:
 
-Linux/macOS: `python3 src/root_cause_engine.py`
+```text
+data/output/causa_raiz_analise.json
+```
 
+### Auditoria do dicionário
 
-Métricas:
+```powershell
+py src/dictionary_analysis.py
+```
 
-Cobertura
+Gera:
 
-Acerto de Classe no Histórico
+```text
+data/output/dicionario_aizen_analise.json
+```
 
-Ambiguidade
+### Análise de validação operacional
 
-Desempenho por classificação
+Após o N2 preencher `Objeto Operacional Validado` e `Classificação Validada`:
 
+```powershell
+py src/validation_analysis.py
+```
 
-Esses scripts são de análise e não alteram o Plano N2.
-Os arquivos gerados em `data/output/` são resultados locais e não são versionados.
+Gera:
 
-O Que Já Funciona
-Leitura do relatório Salesforce.
-Leitura da aba Referencias.
-Extração e normalização do CNPJ.
-Extração e normalização da descrição.
-Lookup de Razão Social.
-Construção do layout Compilado chamados.
-Cálculo de Situação.
-Cálculo de Dias em Aberto.
-Preservação das abas do template.
-Preservação dos dashboards.
-Preservação das fórmulas existentes.
-Herança automática de estilos e fórmulas.
-Inclusão idempotente de chamados.
-Suggestion Engine.
-Causa identificada e causa raiz padrão.
-Classificação automática a partir da causa normalizada.
-Objeto Operacional Sugerido.
-Classificação Sugerida.
-Classificação automática sem score numérico.
-Exportação automática das sugestões para Excel.
-Registro da regra aplicada, estado e ambiguidade da sugestão.
-Persistência das validações do N2 entre execuções.
-Concordância calculada na planilha.
-Métricas de validação operacional em JSON.
-O Que Continua Manual
+```text
+data/output/validation_analysis.json
+```
 
-Os seguintes campos continuam dependentes da operação N2:
+### Análise de casos sem sugestão
 
-RESPONSÁVEL
-Prioridade
-Ofensor
-Observação/Ação
-Objeto Operacional Validado
-Classificação Validada
+```powershell
+py src/uncovered_analysis.py
+```
 
-As sugestões geradas pelo sistema:
+Gera:
 
-Objeto Operacional Sugerido
+```text
+data/output/uncovered_analysis.json
+```
 
-Classificação Sugerida
+Os agrupamentos são exploratórios. O N2 decide quais padrões justificam novas regras.
 
-Score de Confiança (coluna legada, mantida vazia e fora da decisão)
+## Colunas de Sugestão
 
+O processo exporta:
 
-são apoio à revisão. Quando uma causa é identificada, `Causa raiz` recebe o nome canônico e `Classificação` recebe a classe oficial mapeada. A validação do N2 permanece disponível para medir concordância e revisar casos sem correspondência ou discordantes.
+- Intenção Identificada
+- Causa Identificada
+- ID Causa Padrão
+- Causa Raiz Padrão
+- Objeto Operacional Sugerido
+- Classificação Sugerida
+- Score Confiança
+- Regra Sugerida
+- Status da Sugestão
+- Motivo da Decisão
+- Ambiguidade
 
-Indicador Principal
+`Score Confiança` é uma coluna legada. O valor permanece vazio e não participa da decisão.
 
-O KPI principal da validação operacional é a **Concordância de Classificação**: sugestões validadas pelo N2 que correspondem à classificação sugerida.
+## Campos que Continuam Manuais
 
-O acerto histórico do motor continua sendo acompanhado durante a avaliação das regras, mas não substitui a concordância medida em validações operacionais.
+- RESPONSÁVEL
+- Prioridade
+- Ofensor
+- Observação/Ação
+- Objeto Operacional Validado
+- Classificação Validada
 
-O alvo operacional continua sendo a classificação do trabalho do N2, não a previsão da causa raiz exata.
+A validação manual é usada para medir concordância e revisar casos ambíguos, sem correspondência ou discordantes.
 
-Próximos Passos
-Acumular validações do N2 em chamados novos e rotular também parte dos não cobertos para medir cobertura por classe.
-Revisar regras com maior volume de discordâncias antes de ampliar a cobertura.
-Revisar periodicamente taxonomia e regras operacionais.
-Evoluir a taxonomia apenas após validação do N2.
-Resultado Esperado
+## Indicador Principal
+
+O KPI principal é a **Concordância de Classificação**:
+
+```text
+Sugestões validadas pelo N2 que correspondem à classificação sugerida
+```
+
+O acerto histórico é uma métrica de regressão e auditoria, mas não substitui a validação operacional.
+
+## Critérios para Evoluir o Dicionário
+
+Uma nova causa deve:
+
+1. representar uma ação operacional distinta
+2. exigir tratamento diferente da equipe
+3. ser reutilizável em chamados futuros
+4. não caber em uma causa existente
+5. possuir uma classificação oficial clara
+
+Uma nova regra não deve ser criada a partir de um único chamado específico.
+
+Prefira:
+
+```text
+ação + objeto
+ação + objeto + contexto
+objeto + contexto inequívoco
+```
+
+Evite:
+
+```text
+termos isolados
+nomes de clientes
+CNPJ
+número de chamado
+frase completa de um único caso
+```
+
+## O Que Já Funciona
+
+- Leitura do relatório Salesforce
+- Leitura da aba Referências
+- Extração e normalização do CNPJ
+- Extração do assunto interno
+- Extração e normalização da descrição
+- Lookup de Razão Social
+- Construção do layout Compilado chamados
+- Cálculo de Situação
+- Cálculo de Dias em Aberto
+- Preservação do template, fórmulas e dashboards
+- Inclusão idempotente de chamados
+- Atualização de sugestões existentes
+- Catálogo canônico de causas
+- Aliases de causas históricas
+- Assinaturas determinísticas
+- Fallback por padrões
+- Causa raiz padrão
+- Classificação oficial
+- Objeto Operacional Sugerido
+- Ambiguidade explícita
+- Exportação para Excel
+- Relatórios de cobertura e divergência
+- Persistência das validações do N2
+
+## Próximos Passos
+
+1. revisar as divergências reais antes de expandir cobertura
+2. corrigir vocabulários duplicados ou conceitos cadastrados no grupo errado
+3. transformar os testes críticos em testes permanentes
+4. remover o campo legado `causa_canonica` após confirmar que nenhum módulo depende dele
+5. revisar os 60 casos históricos sem correspondência
+6. acumular validações operacionais do N2
+7. congelar e versionar o MVP 1
+
+## Resultado Esperado
 
 Quando um novo chamado chega:
 
-Descrição
+```text
+Descrição bruta
         ↓
-Causa identificada
+Descrição operacional
         ↓
-Normalização para causa raiz padrão
+Intenção identificada
+        ↓
+Causa raiz padrão
         ↓
 Classificação oficial
+```
 
-
-permitindo ao N2 reduzir esforço de triagem e manter consistência operacional.
+O objetivo é reduzir o esforço de triagem, manter consistência operacional e preservar a revisão humana nos casos em que não existe evidência segura.
