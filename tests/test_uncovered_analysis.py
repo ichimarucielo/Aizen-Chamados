@@ -1,6 +1,12 @@
 import pandas as pd
+import pytest
 
-from uncovered_analysis import analyze_uncovered, _has_suggestion_results
+from root_cause_engine import load_dictionary
+from uncovered_analysis import (
+    _extract_concept_groups,
+    _has_suggestion_results,
+    analyze_uncovered,
+)
 
 
 def test_uncovered_analysis_clusters_shared_patterns_without_suggestion():
@@ -125,3 +131,52 @@ def test_workbook_with_suggestion_status_is_usable_as_analysis_source():
     })
 
     assert _has_suggestion_results(dataframe)
+
+
+@pytest.mark.parametrize("reason", ["NO_PATTERN", "CONTRACT_NOT_FOUND"])
+def test_uncovered_analysis_groups_current_and_legacy_unmatched_concepts(reason):
+    dataframe = pd.DataFrame([
+        {
+            "Número do Chamado": ticket,
+            "Descrição": "Descrição do problema: consultar contrato pelo banco",
+            "Assunto": "Contrato",
+            "Status da Sugestão": "Sem correspondência",
+            "Motivo da Decisão": reason,
+            "Classificação Validada": "",
+        }
+        for ticket in ("N2-11", "N2-12")
+    ])
+
+    report = analyze_uncovered(dataframe)
+
+    assert report["motivos_da_decisao"] == {reason: 2}
+    assert len(report["lacunas_de_contrato"]) == 1
+    gap = report["lacunas_de_contrato"][0]
+    assert gap["assinatura"] == "OBJETO:CONTRATO + ACAO:CONSULTAR + CANAL:BANCO"
+    assert gap["quantidade"] == 2
+    assert gap["numeros_chamado"] == ["N2-11", "N2-12"]
+    assert gap["classes_validadas_n2"] == {}
+
+
+def test_concept_groups_preserve_categories_with_the_same_concept_name():
+    objects, actions, contexts = _extract_concept_groups("PO", load_dictionary())
+
+    assert objects == ["OBJETO:PO"]
+    assert actions == ["ACAO:PO"]
+    assert contexts == ["CANAL:PO"]
+
+
+def test_unmatched_text_without_known_concepts_has_no_contract_gap():
+    dataframe = pd.DataFrame([{
+        "Número do Chamado": "N2-13",
+        "Descrição": "Descrição do problema: outros",
+        "Assunto": "Outros",
+        "Status da Sugestão": "Sem correspondência",
+        "Motivo da Decisão": "NO_PATTERN",
+        "Classificação Validada": "",
+    }])
+
+    report = analyze_uncovered(dataframe)
+
+    assert report["chamados_sem_correspondencia"] == 1
+    assert report["lacunas_de_contrato"] == []

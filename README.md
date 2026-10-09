@@ -59,14 +59,14 @@ Toda a lógica ativa é baseada em regras operacionais determinísticas, catálo
 Intenções:          28
 Causas canônicas:   30
 Aliases de causas:  57
-Assinaturas:        10
+Assinaturas:        11
 Classes oficiais:    6
 Problemas:            0
 ```
 
 ### Métricas atuais
 
-#### Histórico consolidado
+#### Histórico consolidado na planilha, antes da revisão de 2026-10-09
 
 ```text
 Total:                  411
@@ -82,15 +82,18 @@ Por padrão:             197
 
 ```text
 Total:                  157
-Classificados:          129
-Cobertura automática: 82,2%
-Ambíguos:                 3
+Classificados:          130
+Cobertura automática: 82,8%
+Ambíguos:                 2
 Sem correspondência:     25
-Por assinatura:          48
-Por padrão:              81
+Por assinatura:          56
+Por padrão:              74
 ```
 
 As métricas históricas são usadas para regressão e auditoria. A concordância operacional do N2 continua sendo o indicador principal.
+
+O lote foi recalculado em 2026-10-09 sem atualizar a planilha operacional.
+Cobertura mede quantos chamados receberam sugestão; não mede acerto.
 
 ## Princípio Central
 
@@ -280,6 +283,9 @@ O fluxo é intencionalmente simples e mantido por poucos módulos.
 - `src/lookup.py`: busca da razão social
 - `src/business_rules.py`: cálculo de situação e dias em aberto
 - `src/root_cause_engine.py`: catálogo, assinaturas, padrões, causa e classificação
+- `src/text_rules.py`: normalização, negação explícita e associação entre ação e objeto
+- `src/classification_input.py`: entrada compartilhada pelo fluxo principal, backfill e avaliações
+- `src/schema.py`: colunas de sugestão, validação e atualização automática
 - `src/export.py`: atualização do template Excel
 - `src/main.py`: orquestração do processo
 
@@ -512,6 +518,14 @@ Os testes verificam:
 - casos sem correspondência
 - regressões do fluxo principal
 
+A regressão do lote de 157 chamados está em `tests/test_regressao_lote157.py`
+e participa da execução padrão. A revisão de 2026-10-09 passou em 157 testes,
+incluindo negativas, limites de frases, pedidos mistos, tempo de revisão do N2
+e saneamento das fórmulas herdadas do Excel. O exportador preserva valores manuais,
+sinaliza causas sem referência e trata descrições vazias. Os indicadores herdados
+do Panorama contam diretamente os status no mesmo recorte histórico da tabela
+dinâmica, sem depender de seu cache inválido.
+
 ## Análises Disponíveis
 
 ### Relatório de taxonomia e classificação
@@ -595,6 +609,11 @@ O processo exporta:
 - Ambiguidade
 
 `Score Confiança` é uma coluna legada. O valor permanece vazio e não participa da decisão.
+
+Nos chamados existentes, a exportação atualiza sugestões e os campos automáticos
+definidos em `src/schema.py`, incluindo status, situação, dias em aberto,
+descrições e dados de referência. Campos manuais e validações do N2 são
+preservados. No backfill, campos operacionais ausentes não são sobrescritos.
 
 ## Campos que Continuam Manuais
 
@@ -682,6 +701,14 @@ frase completa de um único caso
 5. revisar os 60 casos históricos sem correspondência
 6. acumular validações operacionais do N2
 7. congelar e versionar o MVP 1
+
+## Piloto e fechamento do MVP
+
+O fluxo de revisão, os critérios propostos ao N2 e o congelamento reproduzível
+estão em [docs/validacao_mvp.md](docs/validacao_mvp.md). `src/mvp_pilot.py` prepara
+e mede o piloto; `src/mvp_release.py` preserva a candidata com hashes e ZIP.
+Chamados já utilizados na calibração não contam para o aceite prospectivo.
+Os limites em `data/input/criterios_mvp.yaml` aguardam confirmação do N2.
 
 ## Resultado Esperado
 

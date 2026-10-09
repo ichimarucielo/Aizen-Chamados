@@ -8,6 +8,7 @@ import unicodedata
 
 import pandas as pd
 
+from classification_input import build_classification_input
 from root_cause_engine import classify, load_dictionary
 
 
@@ -117,18 +118,16 @@ def analyze_dictionary(
     correct = 0
     labelled_total = 0
     description_empty = 0
+    descriptions = build_classification_input(history)
 
-    for _, row in history.iterrows():
+    for (_, row), description in zip(history.iterrows(), descriptions):
         actual_class = _text(row.get("Classificação"))
-        description = _text(row.get("Descrição detalhada"))
-        if not description:
-            description = _text(row.get("Descrição"))
         if not description:
             description_empty += 1
         result = classify(description, dictionary)
-        if result["status"] == "Sem correspondência":
+        if result["reason_code"] in {"NO_PATTERN", "EMPTY_TEXT"}:
             no_match += 1
-        if result["status"] == "Ambígua":
+        if result["ambiguo"]:
             ambiguous += 1
         if result["intencao_id"]:
             intent_volume_by_text[result["intencao_id"]] += 1

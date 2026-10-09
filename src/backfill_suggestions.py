@@ -5,10 +5,8 @@ import pandas as pd
 from export import export_plano_n2
 from extract import load_compilado_sheet
 from root_cause_engine import build_suggestions
-from parse_description import (
-    extract_problem,
-    parse_description,
-)
+from classification_input import build_classification_input
+from schema import AIZEN_OUTPUT_COLUMNS
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -27,178 +25,7 @@ OUTPUT_PATH = (
 )
 
 KEY_COLUMN = "Número do Chamado"
-DESCRIPTION_COLUMN = "Descrição detalhada"
-SUBJECT_COLUMN = "Assunto"
-STATUS_COLUMN = "Status da Sugestão"
 
-AIZEN_OUTPUT_COLUMNS = [
-    "Intenção Identificada",
-    "Causa Identificada",
-    "Causa Raiz Padrão",
-    "Objeto Operacional Sugerido",
-    "Classificação Sugerida",
-    "Score Confiança",
-    "Regra Sugerida",
-    "Status da Sugestão",
-    "Motivo da Decisão",
-    "Ambiguidade",
-]
-
-
-def _clean_text_series(
-    series: pd.Series,
-) -> pd.Series:
-    """Converte uma série textual para strings limpas."""
-    return (
-        series
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-
-def _build_classification_input(
-    dataframe: pd.DataFrame,
-) -> pd.Series:
-    """
-    Constrói a entrada usando o assunto interno e a descrição operacional.
-
-    Prioridade:
-    1. Assunto interno + problema extraído
-    2. Problema extraído
-    3. Descrição detalhada
-    4. Assunto externo como último fallback
-    """
-    index = dataframe.index
-
-    if "Descrição" in dataframe.columns:
-        raw_description = (
-            dataframe["Descrição"]
-            .fillna("")
-            .astype(str)
-        )
-    else:
-        raw_description = pd.Series(
-            "",
-            index=index,
-            dtype="object",
-        )
-
-    parsed_description = raw_description.apply(
-        parse_description
-    )
-
-    internal_subject = (
-        parsed_description
-        .map(
-            lambda parsed: parsed.get(
-                "assunto",
-                "",
-            )
-        )
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-    extracted_problem = (
-        raw_description
-        .apply(extract_problem)
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
-
-    if "Descrição detalhada" in dataframe.columns:
-        detailed_description = (
-            dataframe["Descrição detalhada"]
-            .fillna("")
-            .astype(str)
-            .str.strip()
-        )
-    else:
-        detailed_description = pd.Series(
-            "",
-            index=index,
-            dtype="object",
-        )
-
-    if "Assunto" in dataframe.columns:
-        external_subject = (
-            dataframe["Assunto"]
-            .fillna("")
-            .astype(str)
-            .str.strip()
-        )
-    else:
-        external_subject = pd.Series(
-            "",
-            index=index,
-            dtype="object",
-        )
-
-    classification_input = pd.Series(
-        "",
-        index=index,
-        dtype="object",
-    )
-
-    has_internal_subject = internal_subject.ne("")
-    has_problem = extracted_problem.ne("")
-
-    both_available = (
-        has_internal_subject
-        & has_problem
-    )
-
-    classification_input.loc[
-        both_available
-    ] = (
-        internal_subject.loc[both_available]
-        + ". "
-        + extracted_problem.loc[both_available]
-    )
-
-    only_problem = (
-        classification_input.eq("")
-        & has_problem
-    )
-
-    classification_input.loc[
-        only_problem
-    ] = extracted_problem.loc[only_problem]
-
-    only_internal_subject = (
-        classification_input.eq("")
-        & has_internal_subject
-    )
-
-    classification_input.loc[
-        only_internal_subject
-    ] = internal_subject.loc[
-        only_internal_subject
-    ]
-
-    classification_input = (
-        classification_input.mask(
-            classification_input.eq(""),
-            detailed_description,
-        )
-    )
-
-    classification_input = (
-        classification_input.mask(
-            classification_input.eq(""),
-            external_subject,
-        )
-    )
-
-    return (
-        classification_input
-        .fillna("")
-        .astype(str)
-        .str.strip()
-    )
 
 def _select_pending_rows(
     dataframe: pd.DataFrame,
@@ -234,7 +61,7 @@ def build_backfill_dataframe(
     pending_df: pd.DataFrame,
 ) -> pd.DataFrame:
     """Executa o motor sobre os históricos pendentes."""
-    descriptions = _build_classification_input(
+    descriptions = build_classification_input(
         pending_df
     )
 
@@ -265,9 +92,8 @@ def build_backfill_dataframe(
         )
     )
 
-    result["Causa Raiz Padrão"] = suggestions[
-        "causa_canonica"
-    ]
+    result["ID Causa Padrão"] = suggestions["causa_id"]
+    result["Causa Raiz Padrão"] = suggestions["causa_padrao"]
 
     result["Objeto Operacional Sugerido"] = suggestions[
         "objeto_operacional"

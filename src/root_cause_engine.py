@@ -11,13 +11,13 @@ from __future__ import annotations
 
 from pathlib import Path
 import re
-import unicodedata
 from typing import Any
 
 import pandas as pd
 import yaml
 
-from parse_description import normalize_description
+from classification_input import build_classification_input
+from text_rules import action_object_scopes, normalize_text, remove_negated_requests
 
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -77,36 +77,6 @@ FORM_BOILERPLATE_PATTERNS = (
     r"\bencaminhar (?:o )?chamado para o financeiro\b",
     r"\bencaminhar (?:o )?chamado para o n2\b",
 )
-
-
-def normalize_text(value: Any) -> str:
-    """Normaliza texto para correspondência determinística."""
-    if value is None or pd.isna(value):
-        return ""
-
-    text = normalize_description(str(value)).lower()
-    text = unicodedata.normalize("NFKD", text)
-    text = "".join(
-        char
-        for char in text
-        if not unicodedata.combining(char)
-    )
-    text = re.sub(
-        r"[\w.+-]+@[\w.-]+\.\w+",
-        " email ",
-        text,
-    )
-    text = re.sub(
-        r"\bnotas?\s+fisc(?:al|ais)\b"
-        r"|\bnf'?s\b"
-        r"|\bnfs\b"
-        r"|\bnf-?e\b"
-        r"|\bnfs-?e\b",
-        " nf ",
-        text,
-    )
-    text = re.sub(r"[^a-z0-9]+", " ", text)
-    return re.sub(r"\s+", " ", text).strip()
 
 
 def prepare_classification_text(value: Any) -> str:
@@ -797,8 +767,11 @@ def _signature_specificity(
 def _signature_candidates(
     text: str,
     dictionary: dict[str, Any],
+    scope_text: str | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, set[str]]]:
     extracted = extract_signature(text, dictionary)
+    scopes = action_object_scopes(scope_text if scope_text is not None else text,
+                                 dictionary.get("vocabulario", {}))
     candidates: list[dict[str, Any]] = []
 
     for item in dictionary.get("intencoes", []):
@@ -811,6 +784,21 @@ def _signature_candidates(
                 signature_rule,
             ):
                 continue
+
+            # Uma ação em outro trecho não autoriza alterar qualquer objeto citado.
+            if (
+                any(signature_rule.get(field) for field in ("acoes_um_de", "acoes_todas"))
+                and any(signature_rule.get(field) for field in ("objetos_um_de", "objetos_todos"))
+            ):
+                if not any(
+                    _signature_matches({**extracted, "acoes": scope["acoes"]}, signature_rule)
+                    and scope["objetos"].intersection(
+                        _as_string_list(signature_rule.get("objetos_um_de"))
+                        + _as_string_list(signature_rule.get("objetos_todos"))
+                    )
+                    for scope in scopes
+                ):
+                    continue
 
             resolved_cause = resolve_intent_cause(
                 intent=item,
@@ -865,7 +853,7 @@ def _pattern_matches(
         return False
 
     for part in parts:
-        if part not in normalized_text:
+        if not _contains_phrase(normalized_text, part):
             return False
 
     return True
@@ -1085,7 +1073,8 @@ def classify(
         and "intencoes" in rules
         else load_dictionary()
     )
-    text = prepare_classification_text(description)
+    filtered_description = remove_negated_requests(description, dictionary.get("vocabulario", {}))
+    text = prepare_classification_text(filtered_description)
 
     if not text:
         return _empty_result(REASON_EMPTY_TEXT)
@@ -1093,6 +1082,7 @@ def classify(
     signature_candidates, extracted = _signature_candidates(
         text,
         dictionary,
+        scope_text=filtered_description,
     )
     signature_match, signature_ties = _select_candidate(
         signature_candidates
@@ -1230,8 +1220,9 @@ def evaluate(
 ) -> dict[str, Any]:
     dictionary = dictionary or load_dictionary()
     rows: list[dict[str, Any]] = []
+    descriptions = build_classification_input(history)
 
-    for _, record in history.iterrows():
+    for (_, record), description in zip(history.iterrows(), descriptions):
         actual = _clean(
             record.get("Classificação")
         )
@@ -1239,7 +1230,7 @@ def evaluate(
             continue
 
         result = classify(
-            record.get("Descrição detalhada"),
+            description,
             rules=dictionary,
         )
         rows.append(

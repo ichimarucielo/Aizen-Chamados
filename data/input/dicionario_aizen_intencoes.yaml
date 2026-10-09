@@ -347,7 +347,6 @@ vocabulario:
       - duplicadas
       - duas vezes
       - dois boletos
-      - duas notas
       - mesmo período e valor
 
     DIVERGENCIA:
@@ -537,6 +536,7 @@ intencoes:
   - nf emitida no mês errado
   - emitir nf no mês correto
   - emissão no final do mês
+  - emissão + final + mês + lançamento
   - alteração na data de emissão
   - alteração da data de emissão
   - alterar data de emissão
@@ -736,7 +736,6 @@ intencoes:
   - valor + divergente
   - valor + incorreto
   - cobrado + a mais
-  - cobrança + contrato
   - cobrança + não contratado
   - cobrança + sem contrato
   - transações + cobradas
@@ -1114,6 +1113,11 @@ intencoes:
   classificacao: Contratos, Comercial e Cadastro
   causa_id: CANCELAMENTO_CONTRATO
   evidencias_historicas: 9
+  assinaturas:
+    - acoes_um_de:
+        - CANCELAR
+      objetos_todos:
+        - CONTRATO
   padroes:
   - cancelar contrato
   - cancelar o contrato
@@ -1568,5 +1572,3 @@ intencoes:
   - discriminação de cbs e ibs
   - exigência fiscal do cliente
   - padrão fiscal da empresa
-
-

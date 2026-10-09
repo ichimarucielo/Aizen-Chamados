@@ -43,8 +43,10 @@ def test_build_n2_dataframe_classifies_full_description_to_canonical_cause():
         history,
     ).iloc[0]
 
-    assert result["Causa Identificada"] == "cancelamento da nf"
+    assert "ACAO:CANCELAR" in result["Causa Identificada"]
+    assert "OBJETO:NOTA_FISCAL" in result["Causa Identificada"]
     assert result["Intenção Identificada"] == "Cancelar, substituir ou reemitir nota fiscal."
-    assert result["Causa Raiz Padrão"] == "Cancelamento/Reemissão de Nota Fiscal"
-    assert result["Causa raiz"] == "Cancelamento/Reemissão de Nota Fiscal"
+    assert result["ID Causa Padrão"] == "CANCELAMENTO_NF"
+    assert result["Causa Raiz Padrão"] == "Cancelamento de NF"
+    assert result["Causa raiz"] == "Cancelamento de NF"
     assert result["Classificação"] == "Cancelamento e Reemissão de Nota Fiscal"

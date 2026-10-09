@@ -19,7 +19,8 @@ from parse_description import (
 )
 from root_cause_analysis import ngrams
 from root_cause_engine import (
-    extract_concepts,
+    REASON_NO_PATTERN,
+    extract_signature,
     load_dictionary,
     normalize_text,
 )
@@ -58,6 +59,7 @@ OUTPUT_PATH = (
 STATUS_UNCOVERED = "Sem correspondência"
 STATUS_AMBIGUOUS = "Ambígua"
 REASON_CONTRACT_NOT_FOUND = "CONTRACT_NOT_FOUND"
+GAP_REASONS = {REASON_NO_PATTERN, REASON_CONTRACT_NOT_FOUND}
 
 MIN_CLUSTER_SIZE = 2
 MAX_CLUSTERS = 40
@@ -141,7 +143,6 @@ WORKBOOK_REQUIRED_COLUMNS = {
     "Descrição",
     "Assunto",
     "Status da Sugestão",
-    "Motivo da Decisão",
     "Classificação Validada",
 }
 
@@ -280,29 +281,13 @@ def _extract_concept_groups(
     dictionary: dict,
 ) -> tuple[list[str], list[str], list[str]]:
     """Separa conceitos identificados por categoria."""
-    concepts = extract_concepts(
-        normalize_text(text),
-        dictionary,
-    )
+    concepts = extract_signature(text, dictionary)
 
-    objects = sorted(
-        concept_id
-        for concept_id in concepts
-        if concept_id.startswith("OBJ_")
-    )
-
-    actions = sorted(
-        concept_id
-        for concept_id in concepts
-        if concept_id.startswith("ACAO_")
-    )
-
+    objects = sorted(f"OBJETO:{value}" for value in concepts["objetos"])
+    actions = sorted(f"ACAO:{value}" for value in concepts["acoes"])
     contexts = sorted(
-        concept_id
-        for concept_id in concepts
-        if not concept_id.startswith(
-            ("OBJ_", "ACAO_")
-        )
+        [f"CONTEXTO:{value}" for value in concepts["contextos"]]
+        + [f"CANAL:{value}" for value in concepts["canais"]]
     )
 
     return objects, actions, contexts
@@ -384,7 +369,7 @@ def analyze_uncovered(
         )
 
         reason_code = _as_text(
-            row["Motivo da Decisão"]
+            row.get("Motivo da Decisão")
         )
 
         objects, actions, contexts = (
@@ -402,7 +387,7 @@ def analyze_uncovered(
 
         if (
             reason_code
-            == REASON_CONTRACT_NOT_FOUND
+            in GAP_REASONS
             and signature
         ):
             contract_signatures[signature] += 1
@@ -541,7 +526,7 @@ def analyze_uncovered(
             for entry in entries
             if (
                 entry["reason_code"]
-                == REASON_CONTRACT_NOT_FOUND
+                in GAP_REASONS
                 and entry["signature"]
                 == signature
             )
@@ -616,8 +601,9 @@ def analyze_uncovered(
         ],
         "notas": [
             (
-                "As lacunas de contrato indicam conceitos "
-                "reconhecidos sem regra de combinação."
+                "As lacunas de contrato agrupam conceitos reconhecidos em "
+                "casos sem correspondência. Exigem revisão da evidência, "
+                "dos padrões e das assinaturas antes de propor uma regra."
             ),
             (
                 "Os clusters lexicais são exploratórios "

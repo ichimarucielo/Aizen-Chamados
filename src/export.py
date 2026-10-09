@@ -8,40 +8,21 @@ from openpyxl.formula.translate import Translator
 from openpyxl.utils import get_column_letter
 from openpyxl.utils.cell import range_boundaries
 from openpyxl.worksheet.table import TableColumn
+from workbook_repairs import repair_legacy_workbook
+
+from schema import (
+    OPERATIONAL_UPDATE_COLUMNS,
+    SUGGESTION_COLUMNS,
+    TRACKING_COLUMNS,
+    UPDATE_COLUMNS,
+    VALIDATION_COLUMNS,
+)
 
 
 SHEET_NAME = "Compilado chamados"
 TABLE_NAME = "Tabela2"
 HEADER_ROW = 4
 KEY_COLUMN = "Número do Chamado"
-
-SUGGESTION_COLUMNS = [
-    "Intenção Identificada",
-    "Causa Identificada",
-    "Causa Raiz Padrão",
-    "Objeto Operacional Sugerido",
-    "Classificação Sugerida",
-    "Score Confiança",
-]
-
-TRACKING_COLUMNS = [
-    "Regra Sugerida",
-    "Status da Sugestão",
-    "Motivo da Decisão",
-    "Ambiguidade",
-]
-
-VALIDATION_COLUMNS = [
-    "Objeto Operacional Validado",
-    "Classificação Validada",
-    "Concordância",
-]
-
-UPDATE_COLUMNS = (
-    SUGGESTION_COLUMNS
-    + TRACKING_COLUMNS
-)
-
 
 def _normalize_id(value) -> str:
     """Normaliza o identificador do chamado para comparação."""
@@ -59,6 +40,9 @@ def _normalize_id(value) -> str:
 def _excel_value(value):
     """Converte valores do pandas para valores aceitos pelo openpyxl."""
     if pd.isna(value):
+        return None
+
+    if isinstance(value, str) and value == "":
         return None
 
     # Converte tipos escalares do NumPy para tipos nativos do Python.
@@ -512,6 +496,7 @@ def export_plano_n2(
             SUGGESTION_COLUMNS
             + TRACKING_COLUMNS
             + VALIDATION_COLUMNS
+            + [name for name in OPERATIONAL_UPDATE_COLUMNS if name in validated_df.columns]
         ),
     )
 
@@ -592,6 +577,8 @@ def export_plano_n2(
         headers,
         last_row,
     )
+
+    repair_legacy_workbook(workbook)
 
     temporary_path = output_path.with_name(
         f"{output_path.stem}.tmp"

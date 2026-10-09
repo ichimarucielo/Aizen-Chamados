@@ -1,11 +1,6 @@
 """Regressão do lote de 157 chamados: extract_problem, normalização, G1/G4/G5/G6 e precedência."""
-import sys
-from pathlib import Path
-
 import pandas as pd
 import pytest
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from parse_description import extract_problem  # noqa: E402
 from root_cause_engine import classify, load_dictionary, normalize_text  # noqa: E402
@@ -151,7 +146,7 @@ def test_two_invoices_question_uses_numeral_normalization():
 # ---------- precedência ----------
 
 def test_contract_over_nf_cancellation_precedence_removed():
-    precedence = DICTIONARY["precedencia"]
+    precedence = DICTIONARY.get("precedencia", [])
     assert not any(
         r["preferir"] == "INT_CON_CANCELAMENTO" and "INT_NF_CANCEL_REEMISSAO" in r["sobre"]
         for r in precedence

@@ -1,0 +1,10 @@
+# Proposta inicial. Preencher aprovação somente após decisão real do N2.
+aprovado_por: ''
+aprovado_em: ''
+minimo_novos_revisados: 100
+minimo_por_classe: 10
+concordancia_geral: 0.90
+concordancia_por_classe: 0.80
+minimo_ambiguos_revisados: 1
+minimo_sem_sugestao_revisados: 1
+maximo_erros_criticos: 0
